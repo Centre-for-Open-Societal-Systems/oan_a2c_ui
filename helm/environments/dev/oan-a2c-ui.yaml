@@ -12,7 +12,8 @@ ui:
 
   env:
     # Read at runtime (src/lib/env.ts), so one image serves every environment.
-    API_BASE_URL: https://a2c-service.development.oanstaging.com/api
+    # No `/api`: the APISIX gateway serves the backend at `/v1/...` and rewrites to Frappe's `/api/v1/...`.
+    API_BASE_URL: https://a2c-service.development.oanstaging.com
 
   ingress:
     enabled: true
