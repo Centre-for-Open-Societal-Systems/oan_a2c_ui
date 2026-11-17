@@ -1,12 +1,14 @@
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
-import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
+import { usePhoneCountries } from '@/hooks/usePhoneCountries';
 import { User } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { selectConsentState } from '@/features/consent';
 import { selectFarmerState, updateFarmerDetails } from '../store/farmerSlice';
 
 export function FarmerDetailsSection() {
+  const phoneCountries = usePhoneCountries();
   const dispatch = useAppDispatch();
   const { farmerDetails } = useAppSelector(selectFarmerState);
   const { isOtpVerified } = useAppSelector(selectConsentState);
@@ -19,7 +21,7 @@ export function FarmerDetailsSection() {
   // digits (matching the other phone fields' visual style); the store still
   // holds a single phoneNumber string, which nothing else needs split.
   const { countryCode: phoneCountryCode, localDigits: phoneLocalDigits } = splitPhoneNumber(farmerDetails.phoneNumber);
-  const phoneCountryFlagUrl = COUNTRY_CODE_OPTIONS.find((c) => c.code === phoneCountryCode)?.flagUrl;
+  const phoneCountryFlagUrl = phoneCountries.find((c) => c.code === phoneCountryCode)?.flagUrl;
   const handlePhoneCodeChange = (code: string) => handleChange('phoneNumber')(`${code}${phoneLocalDigits}`);
   const handlePhoneDigitsChange = (digits: string) => handleChange('phoneNumber')(`${phoneCountryCode}${toLocalPhoneDigits(digits)}`);
 
@@ -111,7 +113,7 @@ export function FarmerDetailsSection() {
               <CountryCodeSelect
                 value={phoneCountryCode}
                 onChange={handlePhoneCodeChange}
-                options={COUNTRY_CODE_OPTIONS}
+                options={phoneCountries}
                 showChevron
                 triggerClassName="flex items-center justify-between gap-2 w-[110px] shrink-0 h-[42px] rounded-md border border-[#D1D5DB] bg-white px-3 text-[15px] focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1 cursor-pointer"
               />

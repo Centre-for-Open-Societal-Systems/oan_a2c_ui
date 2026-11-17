@@ -1,7 +1,8 @@
 'use client';
 
 import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, toLocalPhoneDigits } from '@/lib/validation/phone';
-import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
+import { usePhoneCountries } from '@/hooks/usePhoneCountries';
 import { useState } from 'react';
 import { FormCard } from './FormCard';
 
@@ -20,6 +21,7 @@ interface ContactDetailsSectionProps {
 }
 
 export function ContactDetailsSection({ fields, onChange, isAgreed, setIsAgreed, errors = {}, onPhoneValidityChange }: ContactDetailsSectionProps) {
+  const phoneCountries = usePhoneCountries();
   const [selectedPhoneCode, setSelectedPhoneCode] = useState('+255');
   // Keep local digits separate so switching the country code dropdown never
   // alters/appends to what the user already typed (Bug #27).
@@ -70,7 +72,7 @@ export function ContactDetailsSection({ fields, onChange, isAgreed, setIsAgreed,
                 // Re-propagate with new code but keep digits untouched
                 propagatePhone(code, localPhoneDigits);
               }}
-              options={COUNTRY_CODE_OPTIONS}
+              options={phoneCountries}
               showChevron
               triggerClassName="flex items-center justify-between gap-2 w-[100px] px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-lg text-[14px] text-[#1F2937] focus:outline-none focus:border-[#16A34A] focus:ring-2 focus:ring-[#16A34A]/20 transition-all cursor-pointer"
             />

@@ -9,7 +9,8 @@ import {
 } from '@/features/seller/store/onboardingSlice';
 import type { BankProfile } from '@/features/seller/api/onboarding.service';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
+import { usePhoneCountries } from '@/hooks/usePhoneCountries';
 import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { Check, Loader2, UserCheck } from 'lucide-react';
 import { useState } from 'react';
@@ -42,6 +43,7 @@ interface OrganizationContactsCardProps {
 }
 
 export function OrganizationContactsCard({ profile }: OrganizationContactsCardProps = {}) {
+  const phoneCountries = usePhoneCountries();
   const dispatch = useAppDispatch();
   const mutationStatus = useAppSelector(selectOnboardingMutationStatus);
   const mutationErrorRaw = useAppSelector(selectOnboardingMutationError);
@@ -150,7 +152,7 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
                 <CountryCodeSelect
                   value={form.groCode}
                   onChange={(code) => handleInputChange('groCode', code)}
-                  options={COUNTRY_CODE_OPTIONS}
+                  options={phoneCountries}
                   showChevron
                   triggerClassName="flex w-[100px] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
@@ -183,7 +185,7 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
                 <CountryCodeSelect
                   value={form.opsCode}
                   onChange={(code) => handleInputChange('opsCode', code)}
-                  options={COUNTRY_CODE_OPTIONS}
+                  options={phoneCountries}
                   showChevron
                   triggerClassName="flex w-[100px] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
                 />

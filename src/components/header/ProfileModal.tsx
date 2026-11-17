@@ -11,7 +11,8 @@ import { toast } from '@/lib/toast';
 import { logger } from '@/lib/logger';
 import { toProxiedFileUrl } from '@/lib/utils';
 import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
-import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
+import { usePhoneCountries } from '@/hooks/usePhoneCountries';
 import { SelectField } from '@/components/ui/SelectField';
 
 interface ProfileModalProps {
@@ -21,6 +22,7 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ isOpen, onClose, role = 'Admin' }: ProfileModalProps) {
+  const phoneCountries = usePhoneCountries();
   const dispatch = useAppDispatch();
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -62,7 +64,7 @@ export function ProfileModal({ isOpen, onClose, role = 'Admin' }: ProfileModalPr
   // still accepts these fields from any signed-in user; closing that is a
   // separate backend change.
   const isProfileReadOnly = userKind === 'farmer';
-  const phoneCountryFlagUrl = COUNTRY_CODE_OPTIONS.find((c) => c.code === formData.phoneCountryCode)?.flagUrl;
+  const phoneCountryFlagUrl = phoneCountries.find((c) => c.code === formData.phoneCountryCode)?.flagUrl;
 
   // A locked field looks locked the way this modal already locks one -- the
   // Account Information fields below have always rendered like this.
@@ -408,7 +410,7 @@ export function ProfileModal({ isOpen, onClose, role = 'Admin' }: ProfileModalPr
                           <CountryCodeSelect
                             value={formData.phoneCountryCode}
                             onChange={(code) => setFormData({ ...formData, phoneCountryCode: code })}
-                            options={COUNTRY_CODE_OPTIONS}
+                            options={phoneCountries}
                             showChevron
                             triggerClassName="flex items-center justify-between gap-2 w-[110px] shrink-0 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors cursor-pointer"
                           />

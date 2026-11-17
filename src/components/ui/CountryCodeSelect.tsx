@@ -11,13 +11,14 @@ export interface CountryCodeOption {
   flagUrl?: string;
 }
 
-/** The one dial-code list every phone field offers; keep in step with KNOWN_COUNTRY_CODES. */
+/**
+ * The dial codes every phone field offers until the auth service's
+ * `phone_countries` arrives (see usePhoneCountries), or when it never does.
+ * Kept to the main markets; the service list is the full one.
+ */
 export const COUNTRY_CODE_OPTIONS: CountryCodeOption[] = [
   { code: '+251', country: 'Ethiopia', flagUrl: '/images/flags/et.svg' },
   { code: '+255', country: 'Tanzania', flagUrl: '/images/flags/tz.svg' },
-  { code: '+254', country: 'Kenya', flagUrl: '/images/flags/ke.svg' },
-  { code: '+256', country: 'Uganda', flagUrl: '/images/flags/ug.svg' },
-  { code: '+250', country: 'Rwanda', flagUrl: '/images/flags/rw.svg' },
   { code: '+1', country: 'United States', flagUrl: '/images/flags/us.svg' },
 ];
 
