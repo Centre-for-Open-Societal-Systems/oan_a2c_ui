@@ -203,4 +203,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-certificatesbuilt-chart/
+certificates
+built-chart/
