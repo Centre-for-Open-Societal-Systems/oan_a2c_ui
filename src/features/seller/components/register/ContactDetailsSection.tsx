@@ -1,15 +1,9 @@
 'use client';
 
 import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, toLocalPhoneDigits } from '@/lib/validation/phone';
-import { CountryCodeSelect, type CountryCodeOption } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
 import { useState } from 'react';
 import { FormCard } from './FormCard';
-
-const CONTACT_COUNTRY_CODES: CountryCodeOption[] = [
-  { code: '+255', country: 'Tanzania', flagUrl: '/images/flags/tz.svg' },
-  { code: '+251', country: 'Ethiopia', flagUrl: '/images/flags/et.svg' },
-  { code: '+1', country: 'United States', flagUrl: '/images/flags/us.svg' },
-];
 
 export interface ContactFields {
   registered_email: string;
@@ -76,7 +70,7 @@ export function ContactDetailsSection({ fields, onChange, isAgreed, setIsAgreed,
                 // Re-propagate with new code but keep digits untouched
                 propagatePhone(code, localPhoneDigits);
               }}
-              options={CONTACT_COUNTRY_CODES}
+              options={COUNTRY_CODE_OPTIONS}
               showChevron
               triggerClassName="flex items-center justify-between gap-2 w-[100px] px-3 py-2.5 bg-white border border-[#D1D5DB] rounded-lg text-[14px] text-[#1F2937] focus:outline-none focus:border-[#16A34A] focus:ring-2 focus:ring-[#16A34A]/20 transition-all cursor-pointer"
             />

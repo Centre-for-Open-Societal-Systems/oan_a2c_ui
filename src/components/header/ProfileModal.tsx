@@ -11,17 +11,8 @@ import { toast } from '@/lib/toast';
 import { logger } from '@/lib/logger';
 import { toProxiedFileUrl } from '@/lib/utils';
 import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
-import { CountryCodeSelect, type CountryCodeOption } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
 import { SelectField } from '@/components/ui/SelectField';
-
-const PROFILE_COUNTRY_CODES: CountryCodeOption[] = [
-  { code: '+251', country: 'Ethiopia', flagUrl: '/images/flags/et.svg' },
-  { code: '+255', country: 'Tanzania', flagUrl: '/images/flags/tz.svg' },
-  { code: '+254', country: 'Kenya', flagUrl: '/images/flags/ke.svg' },
-  { code: '+256', country: 'Uganda', flagUrl: '/images/flags/ug.svg' },
-  { code: '+250', country: 'Rwanda', flagUrl: '/images/flags/rw.svg' },
-  { code: '+1', country: 'United States', flagUrl: '/images/flags/us.svg' },
-];
 
 interface ProfileModalProps {
   isOpen: boolean;
@@ -71,7 +62,7 @@ export function ProfileModal({ isOpen, onClose, role = 'Admin' }: ProfileModalPr
   // still accepts these fields from any signed-in user; closing that is a
   // separate backend change.
   const isProfileReadOnly = userKind === 'farmer';
-  const phoneCountryFlagUrl = PROFILE_COUNTRY_CODES.find((c) => c.code === formData.phoneCountryCode)?.flagUrl;
+  const phoneCountryFlagUrl = COUNTRY_CODE_OPTIONS.find((c) => c.code === formData.phoneCountryCode)?.flagUrl;
 
   // A locked field looks locked the way this modal already locks one -- the
   // Account Information fields below have always rendered like this.
@@ -417,7 +408,7 @@ export function ProfileModal({ isOpen, onClose, role = 'Admin' }: ProfileModalPr
                           <CountryCodeSelect
                             value={formData.phoneCountryCode}
                             onChange={(code) => setFormData({ ...formData, phoneCountryCode: code })}
-                            options={PROFILE_COUNTRY_CODES}
+                            options={COUNTRY_CODE_OPTIONS}
                             showChevron
                             triggerClassName="flex items-center justify-between gap-2 w-[110px] shrink-0 bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-colors cursor-pointer"
                           />

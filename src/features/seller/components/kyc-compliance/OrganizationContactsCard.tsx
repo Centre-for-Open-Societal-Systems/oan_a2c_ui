@@ -9,15 +9,32 @@ import {
 } from '@/features/seller/store/onboardingSlice';
 import type { BankProfile } from '@/features/seller/api/onboarding.service';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, toLocalPhoneDigits } from '@/lib/validation/phone';
+import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
+import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { Check, Loader2, UserCheck } from 'lucide-react';
 import { useState } from 'react';
 
 interface ContactFormState {
   groName: string;
+  groCode: string;
   groMobile: string;
   opsName: string;
+  opsCode: string;
   opsMobile: string;
+}
+
+// The profile holds E.164 numbers; the form edits the dial code and local digits separately.
+function toFormState(profile?: BankProfile | null): ContactFormState {
+  const gro = splitPhoneNumber(profile?.gro_mobile ?? '');
+  const ops = splitPhoneNumber(profile?.ops_mobile ?? '');
+  return {
+    groName: profile?.gro_name ?? '',
+    groCode: gro.countryCode,
+    groMobile: gro.localDigits,
+    opsName: profile?.ops_name ?? '',
+    opsCode: ops.countryCode,
+    opsMobile: ops.localDigits,
+  };
 }
 
 interface OrganizationContactsCardProps {
@@ -33,12 +50,7 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
   const currentProfile = profile ?? storeProfile;
 
   const [prevProfile, setPrevProfile] = useState(currentProfile);
-  const [form, setForm] = useState<ContactFormState>(() => ({
-    groName: currentProfile?.gro_name ?? '',
-    groMobile: currentProfile?.gro_mobile ?? '',
-    opsName: currentProfile?.ops_name ?? '',
-    opsMobile: currentProfile?.ops_mobile ?? '',
-  }));
+  const [form, setForm] = useState<ContactFormState>(() => toFormState(currentProfile));
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSaved, setIsSaved] = useState(() =>
     Boolean(currentProfile?.org_grievance_updated || (currentProfile?.gro_name && currentProfile?.gro_mobile))
@@ -56,12 +68,7 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
   if (currentContactSignature !== prevContactSignature) {
     setPrevProfile(currentProfile);
     if (!isDirty) {
-      setForm({
-        groName: currentProfile?.gro_name ?? '',
-        groMobile: currentProfile?.gro_mobile ?? '',
-        opsName: currentProfile?.ops_name ?? '',
-        opsMobile: currentProfile?.ops_mobile ?? '',
-      });
+      setForm(toFormState(currentProfile));
       setIsSaved(Boolean(currentProfile?.org_grievance_updated || (currentProfile?.gro_name && currentProfile?.gro_mobile)));
     }
   }
@@ -98,9 +105,9 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
     const result = await dispatch(
       saveOrgContacts({
         gro_name: form.groName.trim(),
-        gro_mobile: form.groMobile.trim(),
+        gro_mobile: `${form.groCode}${form.groMobile}`,
         ops_name: form.opsName.trim(),
-        ops_mobile: form.opsMobile.trim(),
+        ops_mobile: `${form.opsCode}${form.opsMobile}`,
       })
     );
 
@@ -139,14 +146,23 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
             </div>
             <div className="space-y-1.5">
               <label className="text-[14px] font-bold text-gray-900">Mobile No.</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="Enter phone number"
-                value={form.groMobile}
-                onChange={(event) => handleInputChange('groMobile', toLocalPhoneDigits(event.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+              <div className="flex gap-3">
+                <CountryCodeSelect
+                  value={form.groCode}
+                  onChange={(code) => handleInputChange('groCode', code)}
+                  options={COUNTRY_CODE_OPTIONS}
+                  showChevron
+                  triggerClassName="flex w-[100px] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Enter phone number"
+                  value={form.groMobile}
+                  onChange={(event) => handleInputChange('groMobile', toLocalPhoneDigits(event.target.value))}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
             </div>
           </div>
 
@@ -163,14 +179,23 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
             </div>
             <div className="space-y-1.5">
               <label className="text-[14px] font-bold text-gray-900">Mobile No.</label>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="Enter phone number"
-                value={form.opsMobile}
-                onChange={(event) => handleInputChange('opsMobile', toLocalPhoneDigits(event.target.value))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+              <div className="flex gap-3">
+                <CountryCodeSelect
+                  value={form.opsCode}
+                  onChange={(code) => handleInputChange('opsCode', code)}
+                  options={COUNTRY_CODE_OPTIONS}
+                  showChevron
+                  triggerClassName="flex w-[100px] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Enter phone number"
+                  value={form.opsMobile}
+                  onChange={(event) => handleInputChange('opsMobile', toLocalPhoneDigits(event.target.value))}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
             </div>
           </div>
         </div>

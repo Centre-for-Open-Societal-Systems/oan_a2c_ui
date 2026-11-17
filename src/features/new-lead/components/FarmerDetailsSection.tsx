@@ -1,18 +1,10 @@
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
-import { CountryCodeSelect, type CountryCodeOption } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
 import { User } from 'lucide-react';
 import { useParams } from 'next/navigation';
 import { selectConsentState } from '@/features/consent';
 import { selectFarmerState, updateFarmerDetails } from '../store/farmerSlice';
-
-const FARMER_COUNTRY_CODES: CountryCodeOption[] = [
-  { code: '+251', country: 'Ethiopia', flagUrl: '/images/flags/et.svg' },
-  { code: '+255', country: 'Tanzania', flagUrl: '/images/flags/tz.svg' },
-  { code: '+254', country: 'Kenya', flagUrl: '/images/flags/ke.svg' },
-  { code: '+256', country: 'Uganda', flagUrl: '/images/flags/ug.svg' },
-  { code: '+250', country: 'Rwanda', flagUrl: '/images/flags/rw.svg' },
-];
 
 export function FarmerDetailsSection() {
   const dispatch = useAppDispatch();
@@ -27,7 +19,7 @@ export function FarmerDetailsSection() {
   // digits (matching the other phone fields' visual style); the store still
   // holds a single phoneNumber string, which nothing else needs split.
   const { countryCode: phoneCountryCode, localDigits: phoneLocalDigits } = splitPhoneNumber(farmerDetails.phoneNumber);
-  const phoneCountryFlagUrl = FARMER_COUNTRY_CODES.find((c) => c.code === phoneCountryCode)?.flagUrl;
+  const phoneCountryFlagUrl = COUNTRY_CODE_OPTIONS.find((c) => c.code === phoneCountryCode)?.flagUrl;
   const handlePhoneCodeChange = (code: string) => handleChange('phoneNumber')(`${code}${phoneLocalDigits}`);
   const handlePhoneDigitsChange = (digits: string) => handleChange('phoneNumber')(`${phoneCountryCode}${toLocalPhoneDigits(digits)}`);
 
@@ -119,7 +111,7 @@ export function FarmerDetailsSection() {
               <CountryCodeSelect
                 value={phoneCountryCode}
                 onChange={handlePhoneCodeChange}
-                options={FARMER_COUNTRY_CODES}
+                options={COUNTRY_CODE_OPTIONS}
                 showChevron
                 triggerClassName="flex items-center justify-between gap-2 w-[110px] shrink-0 h-[42px] rounded-md border border-[#D1D5DB] bg-white px-3 text-[15px] focus:outline-none focus-visible:ring-2 focus-visible:ring-green-600 focus-visible:ring-offset-1 cursor-pointer"
               />

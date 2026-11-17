@@ -6,7 +6,7 @@ import {
     selectOnboardingRegistrationStatus
 } from '@/features/seller/store/onboardingSlice';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
-import { CountryCodeSelect, type CountryCodeOption } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect, COUNTRY_CODE_OPTIONS } from '@/components/ui/CountryCodeSelect';
 import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { registerSellerSchema } from '@/lib/api/api.schemas';
 import { toast } from '@/lib/toast';
@@ -14,11 +14,6 @@ import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { ArrowRight, Eye, EyeOff, Info, Lock, Mail, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-
-const CREATE_ACCOUNT_COUNTRY_CODES: CountryCodeOption[] = [
-  { code: '+251', country: 'Ethiopia', flagUrl: '/images/flags/et.svg' },
-  { code: '+255', country: 'Tanzania', flagUrl: '/images/flags/tz.svg' },
-];
 
 export function CreateAccountForm() {
   const router = useRouter();
@@ -116,7 +111,7 @@ export function CreateAccountForm() {
             <CountryCodeSelect
               value={countryCode}
               onChange={setCountryCode}
-              options={CREATE_ACCOUNT_COUNTRY_CODES}
+              options={COUNTRY_CODE_OPTIONS}
               showChevron
               triggerClassName="flex items-center justify-between gap-2 w-[100px] shrink-0 bg-white border border-gray-200 rounded-xl pl-4 pr-3 py-2.5 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#16A34A] focus:border-[#16A34A] transition-colors cursor-pointer"
             />
