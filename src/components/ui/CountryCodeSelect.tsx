@@ -11,6 +11,17 @@ export interface CountryCodeOption {
   flagUrl?: string;
 }
 
+/**
+ * The dial codes every phone field offers until the auth service's
+ * `phone_countries` arrives (see usePhoneCountries), or when it never does.
+ * Kept to the main markets; the service list is the full one.
+ */
+export const COUNTRY_CODE_OPTIONS: CountryCodeOption[] = [
+  { code: '+251', country: 'Ethiopia', flagUrl: '/images/flags/et.svg' },
+  { code: '+255', country: 'Tanzania', flagUrl: '/images/flags/tz.svg' },
+  { code: '+1', country: 'United States', flagUrl: '/images/flags/us.svg' },
+];
+
 interface CountryCodeSelectProps {
   value: string;
   onChange: (val: string) => void;

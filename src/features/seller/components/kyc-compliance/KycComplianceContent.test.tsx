@@ -108,9 +108,9 @@ describe('KycComplianceContent', () => {
 
     // Verify pre-filled contact inputs and saved badge
     expect(screen.getByDisplayValue('Abebe Kebede')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('+251911000001')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('911000001')).toBeInTheDocument();
     expect(screen.getByDisplayValue('Tigist Haile')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('+251911000002')).toBeInTheDocument();
+    expect(screen.getByDisplayValue('911000002')).toBeInTheDocument();
 
     expect(screen.getByText('Contacts saved')).toBeInTheDocument();
   });

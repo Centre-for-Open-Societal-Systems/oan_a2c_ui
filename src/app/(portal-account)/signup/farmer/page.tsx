@@ -2,7 +2,8 @@
 
 import { PortalShell } from '@/app/(portal-account)/components/PortalShell';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
-import { CountryCodeSelect, type CountryCodeOption } from '@/components/ui/CountryCodeSelect';
+import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
+import { usePhoneCountries } from '@/hooks/usePhoneCountries';
 import { fetchApi, ApiError } from '@/lib/api/fetchApi';
 import { Lock, Mail, User } from 'lucide-react';
 import Link from 'next/link';
@@ -12,14 +13,8 @@ import { PasswordRequirements } from '@/components/ui/PasswordRequirements';
 import { strongPasswordSchema } from '@/lib/api/api.schemas';
 import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, toLocalPhoneDigits } from '@/lib/validation/phone';
 
-const COUNTRY_CODES: CountryCodeOption[] = [
-  { code: '+251', flagUrl: '/images/flags/et.svg', country: 'Ethiopia' },
-  { code: '+254', flagUrl: '/images/flags/ke.svg', country: 'Kenya' },
-  { code: '+256', flagUrl: '/images/flags/ug.svg', country: 'Uganda' },
-  { code: '+250', flagUrl: '/images/flags/rw.svg', country: 'Rwanda' },
-];
-
 export default function FarmerSignupPage() {
+  const phoneCountries = usePhoneCountries();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [countryCode, setCountryCode] = useState('+251');
@@ -161,7 +156,7 @@ export default function FarmerSignupPage() {
                 <CountryCodeSelect
                   value={countryCode}
                   onChange={(val) => setCountryCode(val)}
-                  options={COUNTRY_CODES}
+                  options={phoneCountries}
                   triggerClassName="flex items-center gap-2 px-3 py-3 bg-gray-50 border border-r-0 border-[#D1D5DB] rounded-l-xl text-[14px] text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#16A34A]/20 focus:border-[#16A34A] font-medium cursor-pointer hover:bg-gray-100 min-w-[90px]"
                 />
                 <input

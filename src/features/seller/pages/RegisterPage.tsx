@@ -103,35 +103,39 @@ export default function RegisterPage() {
 
   const parsedErrors: Record<string, string> = {};
   if (registrationError) {
-    const regex = /([^:.]+):\s([^.]+)\./g;
-    let match;
+    const KNOWN_FIELDS = [
+      'Bank Name', 'Bank Code', 'Brand Name', 'Entity Type',
+      'Registered Street', 'Registered Kebele Village', 'Registered Woreda District',
+      'Registered Zone', 'Registered Region', 'Registered Country',
+      'Registered Postal Code', 'Registered Email', 'Registered Phone', 'Website',
+    ];
+    const fieldPattern = KNOWN_FIELDS.map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+    const regex = new RegExp(`(${fieldPattern}):\\s*(.*?)(?=(?:\\.\\s*(?:${fieldPattern}):)|\\.?$)`, 'gs');
+    let match: RegExpExecArray | null;
     while ((match = regex.exec(registrationError)) !== null) {
-      // Both groups are non-optional in the pattern, so a match always has them
-      // — but `noUncheckedIndexedAccess` types the lookup as possibly undefined
-      // and cannot know that. Skipping is the honest read: a group that somehow
-      // came back empty has no field name to attribute the message to anyway.
       const field = match[1]?.trim();
-      const errorMsg = match[2]?.trim();
-      if (!field || !errorMsg) continue;
-
+      const rawMsg = match[2]?.trim();
+      if (!field || !rawMsg) continue;
+      const errorMsg = rawMsg.replace(/^Value error,\s*/i, '').replace(/\.$/, '');
 
       switch (field) {
         case 'Bank Name': parsedErrors.bank_name = errorMsg; break;
         case 'Bank Code': parsedErrors.bank_code = errorMsg; break;
+        case 'Brand Name': parsedErrors.brand_name = errorMsg; break;
         case 'Entity Type': parsedErrors.entity_type = errorMsg; break;
         case 'Registered Street': parsedErrors.registered_street = errorMsg; break;
+        case 'Registered Kebele Village': parsedErrors.registered_kebele_village = errorMsg; break;
+        case 'Registered Woreda District': parsedErrors.registered_woreda_district = errorMsg; break;
         case 'Registered Zone': parsedErrors.registered_zone = errorMsg; break;
         case 'Registered Region': parsedErrors.registered_region = errorMsg; break;
         case 'Registered Country': parsedErrors.registered_country = errorMsg; break;
         case 'Registered Postal Code': parsedErrors.registered_postal_code = errorMsg; break;
         case 'Registered Email': parsedErrors.registered_email = errorMsg; break;
-        case 'Registered Phone': 
-          parsedErrors.registered_phone = errorMsg.replace('Value error, ', ''); 
-          break;
+        case 'Registered Phone': parsedErrors.registered_phone = errorMsg; break;
         case 'Website': parsedErrors.website = errorMsg; break;
       }
     }
-    
+
     if (Object.keys(parsedErrors).length === 0) {
       parsedErrors.global = registrationError;
     }
