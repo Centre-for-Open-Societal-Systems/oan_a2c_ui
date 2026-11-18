@@ -8,7 +8,7 @@ import {
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
 import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
 import { usePhoneCountries } from '@/hooks/usePhoneCountries';
-import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, toLocalPhoneDigits } from '@/lib/validation/phone';
+import { PHONE_NUMBER_ERROR, isValidLocalPhone, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { registerSellerSchema } from '@/lib/api/api.schemas';
 import { toast } from '@/lib/toast';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
@@ -36,7 +36,7 @@ export function CreateAccountForm() {
     setLocalError(null);
     dispatch(clearOnboardingErrors());
 
-    if (!PHONE_NUMBER_REGEX.test(phoneNumber)) {
+    if (!isValidLocalPhone(phoneNumber, countryCode)) {
       setLocalError(PHONE_NUMBER_ERROR);
       return;
     }
@@ -122,7 +122,7 @@ export function CreateAccountForm() {
               inputMode="numeric"
               autoComplete="off"
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(toLocalPhoneDigits(e.target.value))}
+              onChange={(e) => setPhoneNumber(toLocalPhoneDigits(e.target.value, countryCode))}
               placeholder="Enter phone number"
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#16A34A] focus:border-[#16A34A] text-sm text-gray-900 transition-colors"
               required

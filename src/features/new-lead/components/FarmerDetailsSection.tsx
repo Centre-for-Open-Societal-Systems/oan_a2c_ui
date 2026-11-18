@@ -23,7 +23,7 @@ export function FarmerDetailsSection() {
   const { countryCode: phoneCountryCode, localDigits: phoneLocalDigits } = splitPhoneNumber(farmerDetails.phoneNumber);
   const phoneCountryFlagUrl = phoneCountries.find((c) => c.code === phoneCountryCode)?.flagUrl;
   const handlePhoneCodeChange = (code: string) => handleChange('phoneNumber')(`${code}${phoneLocalDigits}`);
-  const handlePhoneDigitsChange = (digits: string) => handleChange('phoneNumber')(`${phoneCountryCode}${toLocalPhoneDigits(digits)}`);
+  const handlePhoneDigitsChange = (digits: string) => handleChange('phoneNumber')(`${phoneCountryCode}${toLocalPhoneDigits(digits, phoneCountryCode)}`);
 
   const params = useParams();
   const isLocked = Boolean(params?.id) || isOtpVerified;

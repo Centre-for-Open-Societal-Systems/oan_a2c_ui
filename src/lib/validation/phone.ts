@@ -33,22 +33,48 @@ export function stripLeadingZero(digits: string): string {
 }
 
 /**
- * Drops a leading "251" dial code from a pasted full Ethiopian number
- * ("+251 912 345 678"). Only done at exactly 12 digits (251 + 9 local): other
- * lengths that start with 251 are treated as local numbers, not a dial code.
+ * Exact local-number length for dial codes whose numbering plan is fixed. Any
+ * other code falls back to the PHONE_NUMBER_MIN/MAX_DIGITS sanity bounds and
+ * the backend (libphonenumber) decides.
  */
-export function stripDialCode(digits: string): string {
-  return digits.length === DEFAULT_REGION_LOCAL_DIGITS + 3 && digits.startsWith('251') ? digits.slice(3) : digits;
+const LOCAL_DIGITS_BY_DIAL_CODE: Record<string, number> = {
+  '+251': 9,
+  '+255': 9,
+  '+1': 10,
+};
+
+/** Most local digits the field accepts for `countryCode`. */
+export function maxLocalPhoneDigits(countryCode?: string): number {
+  return (countryCode && LOCAL_DIGITS_BY_DIAL_CODE[countryCode]) || PHONE_NUMBER_MAX_DIGITS;
+}
+
+/** Whether `digits` (local, no dial code or trunk 0) is a complete number for `countryCode`. */
+export function isValidLocalPhone(digits: string, countryCode?: string): boolean {
+  const exact = countryCode ? LOCAL_DIGITS_BY_DIAL_CODE[countryCode] : undefined;
+  return exact ? new RegExp(`^[1-9]\\d{${exact - 1}}$`).test(digits) : PHONE_NUMBER_REGEX.test(digits);
+}
+
+/**
+ * Drops the dial code from a pasted full number ("+251 912 345 678"). Only done
+ * when the length is exactly dial code + local digits: other lengths that
+ * start with the same digits are treated as local numbers, not a dial code.
+ */
+export function stripDialCode(digits: string, countryCode = '+251'): string {
+  const dial = countryCode.slice(1);
+  return digits.length === maxLocalPhoneDigits(countryCode) + dial.length && digits.startsWith(dial)
+    ? digits.slice(dial.length)
+    : digits;
 }
 
 /**
  * Sanitizes a local-number input as it's typed or pasted: digits only, trunk 0
- * dropped, capped at PHONE_NUMBER_MAX_DIGITS. The cap lives here rather than in a
- * `maxLength` attribute, which would truncate a pasted "0912345678" to
- * "091234567" before the trunk 0 could be dropped, losing the last digit.
+ * and a pasted dial code dropped, capped at the country's local length. The cap
+ * lives here rather than in a `maxLength` attribute, which would truncate a
+ * pasted "0912345678" to "091234567" before the trunk 0 could be dropped,
+ * losing the last digit.
  */
-export function toLocalPhoneDigits(value: string): string {
-  return stripLeadingZero(stripDialCode(toDigitsOnly(value))).slice(0, PHONE_NUMBER_MAX_DIGITS);
+export function toLocalPhoneDigits(value: string, countryCode = '+251'): string {
+  return stripLeadingZero(stripDialCode(toDigitsOnly(value), countryCode)).slice(0, maxLocalPhoneDigits(countryCode));
 }
 
 /** Dial codes used anywhere in the app's registration/registration-adjacent forms. */

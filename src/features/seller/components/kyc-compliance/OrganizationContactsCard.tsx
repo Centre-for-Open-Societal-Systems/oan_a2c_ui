@@ -11,7 +11,7 @@ import type { BankProfile } from '@/features/seller/api/onboarding.service';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
 import { usePhoneCountries } from '@/hooks/usePhoneCountries';
-import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
+import { PHONE_NUMBER_ERROR, isValidLocalPhone, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { Check, Loader2, UserCheck } from 'lucide-react';
 import { useState } from 'react';
 
@@ -94,7 +94,7 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
       return;
     }
 
-    if (!PHONE_NUMBER_REGEX.test(form.groMobile) || !PHONE_NUMBER_REGEX.test(form.opsMobile)) {
+    if (!isValidLocalPhone(form.groMobile, form.groCode) || !isValidLocalPhone(form.opsMobile, form.opsCode)) {
       setLocalError(PHONE_NUMBER_ERROR);
       setIsSaved(false);
       return;
@@ -161,7 +161,7 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
                   inputMode="numeric"
                   placeholder="Enter phone number"
                   value={form.groMobile}
-                  onChange={(event) => handleInputChange('groMobile', toLocalPhoneDigits(event.target.value))}
+                  onChange={(event) => handleInputChange('groMobile', toLocalPhoneDigits(event.target.value, form.groCode))}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>
@@ -194,7 +194,7 @@ export function OrganizationContactsCard({ profile }: OrganizationContactsCardPr
                   inputMode="numeric"
                   placeholder="Enter phone number"
                   value={form.opsMobile}
-                  onChange={(event) => handleInputChange('opsMobile', toLocalPhoneDigits(event.target.value))}
+                  onChange={(event) => handleInputChange('opsMobile', toLocalPhoneDigits(event.target.value, form.opsCode))}
                   className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
                 />
               </div>

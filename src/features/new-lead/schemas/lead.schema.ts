@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, stripDialCode, stripLeadingZero, toDigitsOnly } from '@/lib/validation/phone';
+import { PHONE_NUMBER_ERROR, isValidLocalPhone, stripDialCode, stripLeadingZero, toDigitsOnly } from '@/lib/validation/phone';
 
 // The lead form's phone field has no country-code selector — it captures
 // the local number only (e.g. 912345678 for +251-912345678); a pasted
@@ -13,7 +13,7 @@ export const createLeadSchema = z.object({
   phoneNumber: z
     .string()
     .transform((value) => stripLeadingZero(stripDialCode(toDigitsOnly(value.trim()))))
-    .pipe(z.string().regex(PHONE_NUMBER_REGEX, PHONE_NUMBER_ERROR)),
+    .refine((digits) => isValidLocalPhone(digits, '+251'), PHONE_NUMBER_ERROR),
 });
 
 export type CreateLeadFormData = z.infer<typeof createLeadSchema>;
