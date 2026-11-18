@@ -10,7 +10,7 @@ import { onboardingService } from '@/features/seller/api/onboarding.service';
 import { toast } from '@/lib/toast';
 import { logger } from '@/lib/logger';
 import { toProxiedFileUrl } from '@/lib/utils';
-import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
+import { PHONE_NUMBER_ERROR, isValidLocalPhone, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
 import { usePhoneCountries } from '@/hooks/usePhoneCountries';
 import { SelectField } from '@/components/ui/SelectField';
@@ -118,7 +118,7 @@ export function ProfileModal({ isOpen, onClose, role = 'Admin' }: ProfileModalPr
     const original = splitPhoneNumber(originalPhoneNumber);
     const phoneChanged =
       formData.phoneCountryCode !== original.countryCode || formData.phoneLocalDigits !== original.localDigits;
-    if (!isProfileReadOnly && phoneChanged && !PHONE_NUMBER_REGEX.test(formData.phoneLocalDigits)) {
+    if (!isProfileReadOnly && phoneChanged && !isValidLocalPhone(formData.phoneLocalDigits, formData.phoneCountryCode)) {
       toast.error(PHONE_NUMBER_ERROR);
       return;
     }
@@ -419,7 +419,7 @@ export function ProfileModal({ isOpen, onClose, role = 'Admin' }: ProfileModalPr
                             type="tel"
                             inputMode="numeric"
                             value={formData.phoneLocalDigits}
-                            onChange={(e) => setFormData({ ...formData, phoneLocalDigits: toLocalPhoneDigits(e.target.value) })}
+                            onChange={(e) => setFormData({ ...formData, phoneLocalDigits: toLocalPhoneDigits(e.target.value, formData.phoneCountryCode) })}
                             placeholder="Enter phone number"
                             className={editableFieldClass}
                           />

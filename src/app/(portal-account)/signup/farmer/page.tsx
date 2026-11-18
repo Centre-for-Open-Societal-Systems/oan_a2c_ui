@@ -11,7 +11,7 @@ import { useState } from 'react';
 import { Spinner } from '@/components/ui/Loader';
 import { PasswordRequirements } from '@/components/ui/PasswordRequirements';
 import { strongPasswordSchema } from '@/lib/api/api.schemas';
-import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, toLocalPhoneDigits } from '@/lib/validation/phone';
+import { PHONE_NUMBER_ERROR, isValidLocalPhone, toLocalPhoneDigits } from '@/lib/validation/phone';
 
 export default function FarmerSignupPage() {
   const phoneCountries = usePhoneCountries();
@@ -28,7 +28,7 @@ export default function FarmerSignupPage() {
   const handleSignUpSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     
-    if (!PHONE_NUMBER_REGEX.test(phoneNumber)) {
+    if (!isValidLocalPhone(phoneNumber, countryCode)) {
       setError(PHONE_NUMBER_ERROR);
       return;
     }
@@ -163,7 +163,7 @@ export default function FarmerSignupPage() {
                   type="tel"
                   inputMode="numeric"
                   value={phoneNumber}
-                  onChange={(e) => setPhoneNumber(toLocalPhoneDigits(e.target.value))}
+                  onChange={(e) => setPhoneNumber(toLocalPhoneDigits(e.target.value, countryCode))}
                   placeholder="Enter phone number"
                   required
                   className="w-full px-4 py-3 bg-white border border-[#D1D5DB] rounded-r-xl text-[14px] text-[#1F2937] focus:outline-none focus:ring-2 focus:ring-[#16A34A]/20 focus:border-[#16A34A] transition-all placeholder:text-[#9CA3AF] font-medium"

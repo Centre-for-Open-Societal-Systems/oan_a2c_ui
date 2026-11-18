@@ -1,6 +1,6 @@
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
-import { KNOWN_COUNTRY_CODES, PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX } from '@/lib/validation/phone';
+import { KNOWN_COUNTRY_CODES, PHONE_NUMBER_ERROR, isValidLocalPhone } from '@/lib/validation/phone';
 
 // 1. consent.verify_otp
 export const verifyOtpResponseSchema = z.object({
@@ -402,9 +402,9 @@ export const registerSellerSchema = z.object({
   full_name: z.string().min(2, 'Full name must be at least 2 characters long.'),
   password: strongPasswordSchema,
   // Dial code + exactly 9 local digits. A defense-in-depth check on the combined
-  // value, since the form validates the local part alone (PHONE_NUMBER_REGEX).
+  // value, since the form validates the local part alone (isValidLocalPhone).
   phone_number: z.string().refine(
-    (value) => KNOWN_COUNTRY_CODES.some((code) => value.startsWith(code) && PHONE_NUMBER_REGEX.test(value.slice(code.length))),
+    (value) => KNOWN_COUNTRY_CODES.some((code) => value.startsWith(code) && isValidLocalPhone(value.slice(code.length), code)),
     PHONE_NUMBER_ERROR,
   ),
 });
