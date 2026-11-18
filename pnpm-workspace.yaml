@@ -5,9 +5,12 @@ allowBuilds:
   unrs-resolver: false
 # GHSA-vfj7-8cjw-p6xm (braces <= 3.0.3 stack exhaustion DoS in devDependencies):
 # No upstream patch exists on npm yet (micromatch/braces#70, #73).
+# GHSA-fc5q-39xc-vjpf (picomatch <= 4.0.7 ReDoS in devDependencies):
+# No upstream patch 4.0.8 published on npm yet.
 auditConfig:
   ignoreGhsas:
     - GHSA-vfj7-8cjw-p6xm
+    - GHSA-fc5q-39xc-vjpf
 
 overrides:
   postcss: "^8.5.18"
