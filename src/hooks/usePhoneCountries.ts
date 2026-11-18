@@ -2,29 +2,27 @@ import { COUNTRY_CODE_OPTIONS, type CountryCodeOption } from '@/components/ui/Co
 import { fetchApi } from '@/lib/api/fetchApi';
 import { useEffect, useState } from 'react';
 
+// Same row shape as the grievance service's `phone_extensions`: `code` is the ISO
+// country code and `isd` the dial code.
 interface PhoneCountryRow {
-  code?: unknown;
   country?: unknown;
-  iso?: unknown;
+  code?: unknown;
+  isd?: unknown;
 }
 
-// Flag assets that ship with the app, by dial code. A country the service adds
+// Flag assets that ship with the app, by ISO code. A country the service adds
 // without one gets no flag rather than a broken image.
-const FLAGS_BY_CODE = new Map<string, string>([
-  ['+251', '/images/flags/et.svg'],
-  ['+255', '/images/flags/tz.svg'],
-  ['+254', '/images/flags/ke.svg'],
-  ['+256', '/images/flags/ug.svg'],
-  ['+250', '/images/flags/rw.svg'],
-  ['+966', '/images/flags/sa.svg'],
-  ['+1', '/images/flags/us.svg'],
-]);
+const FLAG_ISO_CODES = new Set(['et', 'tz', 'ke', 'ug', 'rw', 'sa', 'us']);
 
 function toOptions(rows: PhoneCountryRow[]): CountryCodeOption[] {
   return rows.flatMap((row) => {
-    if (typeof row.code !== 'string' || typeof row.country !== 'string' || !row.code || !row.country) return [];
-    const flagUrl = FLAGS_BY_CODE.get(row.code);
-    return [flagUrl ? { code: row.code, country: row.country, flagUrl } : { code: row.code, country: row.country }];
+    if (typeof row.isd !== 'string' || typeof row.country !== 'string' || !row.isd || !row.country) return [];
+    const iso = typeof row.code === 'string' ? row.code.toLowerCase() : '';
+    return [
+      FLAG_ISO_CODES.has(iso)
+        ? { code: row.isd, country: row.country, flagUrl: `/images/flags/${iso}.svg` }
+        : { code: row.isd, country: row.country },
+    ];
   });
 }
 

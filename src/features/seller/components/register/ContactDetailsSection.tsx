@@ -1,6 +1,6 @@
 'use client';
 
-import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, toLocalPhoneDigits } from '@/lib/validation/phone';
+import { PHONE_NUMBER_ERROR, PHONE_NUMBER_REGEX, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
 import { usePhoneCountries } from '@/hooks/usePhoneCountries';
 import { useState } from 'react';
@@ -22,10 +22,11 @@ interface ContactDetailsSectionProps {
 
 export function ContactDetailsSection({ fields, onChange, isAgreed, setIsAgreed, errors = {}, onPhoneValidityChange }: ContactDetailsSectionProps) {
   const phoneCountries = usePhoneCountries();
-  const [selectedPhoneCode, setSelectedPhoneCode] = useState('+255');
+  const initialPhone = splitPhoneNumber(fields.registered_phone);
+  const [selectedPhoneCode, setSelectedPhoneCode] = useState(initialPhone.countryCode || '+251');
   // Keep local digits separate so switching the country code dropdown never
   // alters/appends to what the user already typed (Bug #27).
-  const [localPhoneDigits, setLocalPhoneDigits] = useState('');
+  const [localPhoneDigits, setLocalPhoneDigits] = useState(initialPhone.localDigits);
   const [isPhoneTouched, setIsPhoneTouched] = useState(false);
   const phoneLengthError =
     isPhoneTouched && localPhoneDigits.length > 0 && !PHONE_NUMBER_REGEX.test(localPhoneDigits)

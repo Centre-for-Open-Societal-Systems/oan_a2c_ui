@@ -1,10 +1,11 @@
 /**
  * Sanity bounds for a local number (no dial code, no trunk 0). The real,
  * per-country rule is enforced by the backend (libphonenumber); these only
- * catch obvious typos. 15 is the E.164 maximum for a whole number.
+ * catch obvious typos. 15 is the E.164 maximum for a whole number, so a local
+ * number with a 3-digit dial code cannot exceed 12 digits.
  */
 export const PHONE_NUMBER_MIN_DIGITS = 7;
-export const PHONE_NUMBER_MAX_DIGITS = 15;
+export const PHONE_NUMBER_MAX_DIGITS = 12;
 
 /** Digits only, no leading `0` (a trunk 0 is dropped before validating). */
 export const PHONE_NUMBER_REGEX = new RegExp(
