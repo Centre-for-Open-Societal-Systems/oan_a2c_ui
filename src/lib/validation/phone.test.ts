@@ -3,6 +3,8 @@ import {
   PHONE_NUMBER_MAX_DIGITS,
   PHONE_NUMBER_MIN_DIGITS,
   PHONE_NUMBER_REGEX,
+  isValidLocalPhone,
+  maxLocalPhoneDigits,
   splitPhoneNumber,
   stripDialCode,
   stripLeadingZero,
@@ -51,10 +53,39 @@ describe('phone validation utilities', () => {
       expect(stripDialCode('251000')).toBe('251000'); // not 12 digits, kept whole
     });
 
-    it('toLocalPhoneDigits extracts local digits and caps at PHONE_NUMBER_MAX_DIGITS', () => {
+    it('toLocalPhoneDigits extracts local digits and caps at country local length', () => {
       expect(toLocalPhoneDigits('+251 911 22 33 44')).toBe('911223344');
       expect(toLocalPhoneDigits('0712345678')).toBe('712345678');
-      expect(toLocalPhoneDigits('733333333333333333')).toHaveLength(PHONE_NUMBER_MAX_DIGITS);
+      expect(toLocalPhoneDigits('733333333333333333')).toHaveLength(9);
+      expect(toLocalPhoneDigits('733333333333333333', '+1')).toHaveLength(10);
+      expect(toLocalPhoneDigits('733333333333333333', '+999')).toHaveLength(PHONE_NUMBER_MAX_DIGITS);
+    });
+  });
+
+  describe('country-specific local phone digits and validation', () => {
+    it('returns exact local digits for known country dial codes', () => {
+      expect(maxLocalPhoneDigits('+251')).toBe(9);
+      expect(maxLocalPhoneDigits('+255')).toBe(9);
+      expect(maxLocalPhoneDigits('+1')).toBe(10);
+      expect(maxLocalPhoneDigits('+999')).toBe(PHONE_NUMBER_MAX_DIGITS);
+      expect(maxLocalPhoneDigits()).toBe(PHONE_NUMBER_MAX_DIGITS);
+    });
+
+    it('validates exact length per country code with isValidLocalPhone', () => {
+      // Ethiopia (+251): 9 digits
+      expect(isValidLocalPhone('911223344', '+251')).toBe(true);
+      expect(isValidLocalPhone('712345678', '+251')).toBe(true);
+      expect(isValidLocalPhone('71234567', '+251')).toBe(false); // 8 digits
+      expect(isValidLocalPhone('7123456789', '+251')).toBe(false); // 10 digits
+      expect(isValidLocalPhone('0911223344', '+251')).toBe(false); // leading 0
+
+      // US (+1): 10 digits
+      expect(isValidLocalPhone('2025550199', '+1')).toBe(true);
+      expect(isValidLocalPhone('202555019', '+1')).toBe(false); // 9 digits
+
+      // Unknown country: falls back to 7-12 range
+      expect(isValidLocalPhone('1234567', '+999')).toBe(true);
+      expect(isValidLocalPhone('12345', '+999')).toBe(false);
     });
   });
 
