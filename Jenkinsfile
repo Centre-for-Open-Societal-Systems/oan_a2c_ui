@@ -121,6 +121,14 @@ pipeline {
             env.COMMIT_SUBJECT = sh(returnStdout: true, script: 'git log -1 --pretty=%s').trim()
             env.IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
           }
+          script {
+              if (env.BRANCH_NAME == 'staging') {
+                  // The workspace holds the staging branch only; promote needs the develop commits the chart index names.
+                  withCredentials([gitUsernamePassword(credentialsId: scm.userRemoteConfigs[0].credentialsId, gitToolName: 'Default')]) {
+                      sh 'git fetch --quiet --no-tags origin +refs/heads/develop:refs/remotes/origin/develop'
+                  }
+              }
+          }
           sh "python3 ci/package_chart.py ${env.BRANCH_NAME == 'staging' ? 'promote' : 'package'}"
           stash name: 'built-chart', includes: 'built-chart/**'
         }
