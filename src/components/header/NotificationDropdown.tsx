@@ -1,5 +1,6 @@
 'use client';
 
+import { selectUserKind } from '@/features/auth/store/authSlice';
 import {
   clearNotifications,
   fetchNotifications,
@@ -9,7 +10,9 @@ import {
 } from '@/features/notifications/store/notificationSlice';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { CheckCircle2, FileText, Loader2, Trash2, X, XCircle } from 'lucide-react';
+import Link from 'next/link';
 import React, { useEffect, useRef } from 'react';
+import { notificationRoute } from './notification-route';
 
 interface NotificationDropdownProps {
   isOpen: boolean;
@@ -18,8 +21,13 @@ interface NotificationDropdownProps {
 
 export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOpen, onClose }) => {
   const dispatch = useAppDispatch();
+  const userKind = useAppSelector(selectUserKind);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const { items, unreadCount, loading } = useAppSelector((state) => state.notifications);
+  const { items, unreadCount, loading, error } = useAppSelector((state) => state.notifications);
+
+  const loadNotifications = () => {
+    dispatch(fetchNotifications({ read_status: 'all', limit: 20, start: 0 }));
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -42,17 +50,17 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
   if (!isOpen) return null;
 
   const handleMarkAllRead = () => {
-    dispatch(markNotificationsRead({ mark_all: true }));
+    dispatch(markNotificationsRead({ all: true }));
   };
 
   const handleMarkSingleRead = (id: string) => {
-    dispatch(markNotificationsRead({ notification_ids: [id] }));
+    dispatch(markNotificationsRead({ ids: [id] }));
   };
 
   const handleClearSingle = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    dispatch(clearNotifications({ notification_ids: [id] }));
+    dispatch(clearNotifications({ ids: [id] }));
   };
 
   const getItemIcon = (subject?: string, content?: string) => {
@@ -98,7 +106,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
   return (
     <div
       ref={dropdownRef}
-      className="absolute right-4 sm:right-6 top-full mt-2 w-[calc(100vw-32px)] sm:w-[380px] max-w-[340px] sm:max-w-none bg-white border border-gray-100 rounded-2xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+      className="absolute max-sm:-right-[3.25rem] sm:right-0 top-full mt-2 w-[calc(100vw-32px)] sm:w-[380px] max-w-[340px] sm:max-w-none bg-white border border-gray-100 rounded-2xl shadow-xl z-popover overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -121,10 +129,27 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
 
       {/* Content */}
       <div className="max-h-[340px] overflow-y-auto divide-y divide-gray-100">
+        {error && items.length > 0 && (
+          <div role="alert" className="bg-red-50 px-4 py-3 text-xs font-medium text-red-700">
+            {error}
+          </div>
+        )}
         {loading && items.length === 0 ? (
           <div className="flex items-center justify-center py-8 text-gray-400 gap-2">
             <Loader2 className="w-5 h-5 animate-spin" />
             <span className="text-xs">Loading notifications...</span>
+          </div>
+        ) : error && items.length === 0 ? (
+          <div role="alert" className="flex flex-col items-center gap-3 px-5 py-8 text-center">
+            <XCircle className="h-6 w-6 text-red-500" aria-hidden="true" />
+            <p className="text-xs font-medium text-red-700">{error}</p>
+            <button
+              type="button"
+              onClick={loadNotifications}
+              className="rounded-md border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50"
+            >
+              Try again
+            </button>
           </div>
         ) : items.length === 0 ? (
           <div className="py-8 text-center text-xs text-gray-400">No notifications found</div>
@@ -132,23 +157,42 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
           items.map((item, index) => {
             const isUnread = isItemUnread(item);
             const notifId = getNotificationId(item, index);
+            const href = notificationRoute(item, userKind);
+            const markRead = () => {
+              if (isUnread && notifId) handleMarkSingleRead(notifId);
+            };
             return (
               <div
                 key={`${notifId}-${index}`}
-                onClick={() => {
-                  if (isUnread && notifId) {
-                    handleMarkSingleRead(notifId);
-                  }
-                }}
-                className={`p-4 flex items-start gap-3.5 transition-colors cursor-pointer group relative ${
+                className={`p-4 flex items-start gap-3.5 transition-colors group relative ${
                   isUnread ? 'bg-[#F0FDF4] hover:bg-[#DCFCE7]' : 'bg-white hover:bg-gray-50'
                 }`}
               >
-                {getItemIcon(item.subject, item.email_content)}
+                {getItemIcon(item.subject, (item.message || item.email_content) ?? undefined)}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <h4 className="text-sm font-bold text-gray-900 leading-snug">
-                      {item.subject || 'Notification'}
+                      {href ? (
+                        <Link
+                          href={href}
+                          prefetch={false}
+                          onClick={() => {
+                            markRead();
+                            onClose();
+                          }}
+                          className="after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-emerald-600"
+                        >
+                          {item.subject || 'Notification'}
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={markRead}
+                          className="text-left after:absolute after:inset-0 focus-visible:outline-2 focus-visible:outline-emerald-600"
+                        >
+                          {item.subject || 'Notification'}
+                        </button>
+                      )}
                     </h4>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {isUnread && (
@@ -159,22 +203,22 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
                         onClick={(e) => handleClearSingle(e, notifId)}
                         title="Delete notification"
                         aria-label="Delete notification"
-                        className="opacity-0 group-hover:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md cursor-pointer"
+                        className="relative z-10 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-md cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
-                  {item.email_content && (
+                  {(item.message || item.email_content) && (
                     <p className="text-xs text-gray-500 mt-1 line-clamp-2 leading-relaxed">
-                      {item.email_content.replace(/<[^>]*>?/gm, '')}
+                      {(item.message || item.email_content || '').replace(/<[^>]*>?/gm, '')}
                     </p>
                   )}
                   {item.document_name && (
                     <p className="text-xs text-gray-400 mt-1">{item.document_name}</p>
                   )}
                   <p className="text-[11px] text-gray-400 mt-1.5 font-medium">
-                    {formatTimestamp(item.creation)}
+                    {formatTimestamp(item.created_at || item.creation)}
                   </p>
                 </div>
               </div>
@@ -194,7 +238,7 @@ export const NotificationDropdown: React.FC<NotificationDropdownProps> = ({ isOp
         </button>
         <button
           type="button"
-          onClick={() => dispatch(clearNotifications({ clear_all: true }))}
+          onClick={() => dispatch(clearNotifications({ all: true }))}
           className="text-emerald-600 hover:text-emerald-700 transition-colors cursor-pointer"
         >
           Clear all notifications

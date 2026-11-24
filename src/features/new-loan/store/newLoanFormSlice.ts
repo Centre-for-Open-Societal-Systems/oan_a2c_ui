@@ -3,6 +3,7 @@ import { loanService, type LoanApplicationSummary } from '@/features/loans/api/l
 // eslint-disable-next-line boundaries/dependencies -- TODO (2026-08-23): needs to be fixed later; hiding for now as this existed before our changes
 import { consentService } from '@/features/consent/api/consent.service';
 import type { VerifyOtpResponse } from '@/lib/api/api.schemas';
+import { getCatalogBank } from '@/lib/api/catalogApi';
 import { logger } from '@/lib/logger';
 import { normalizeLeadId } from '@/lib/utils';
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
@@ -28,6 +29,8 @@ interface LoanFormState {
   currentStep: number;
   leadId: string | null;
   applicationId: string | null;
+  lenderName: string | null;
+  submittedAt: string | null;
   consentRequestData: ConsentRequestData | null;
   otpVerified: boolean;
   uploadedDocuments: Record<string, unknown>;
@@ -55,6 +58,8 @@ const loadInitialState = (): LoanFormState => {
         const parsed = JSON.parse(saved);
         return {
           ...parsed,
+          lenderName: typeof parsed.lenderName === 'string' ? parsed.lenderName : null,
+          submittedAt: typeof parsed.submittedAt === 'string' ? parsed.submittedAt : null,
           // Never trust a persisted consent/OTP state — always re-verify after a reload.
           consentRequestData: null,
           otpVerified: false,
@@ -72,6 +77,8 @@ const loadInitialState = (): LoanFormState => {
     currentStep: 1,
     leadId: null,
     applicationId: null,
+    lenderName: null,
+    submittedAt: null,
     consentRequestData: null,
     otpVerified: false,
     uploadedDocuments: {},
@@ -96,13 +103,12 @@ export const createLoanApplicationAPI = createAsyncThunk(
       if (!appId) throw new Error('No Application ID returned');
       return appId;
     } catch (err) {
-      const error = err as Error & { responseData?: { message?: { name?: string } } };
-      if (error.responseData?.message?.name) {
-        return rejectWithValue({
-          message: error.message || 'Failed to create application',
-          name: error.responseData.message.name
-        });
-      }
+      // Always a string: the `rejected` reducer assigns this straight into
+      // `errors.createApp`, which is typed `string | null`. A duplicate lead
+      // surfaces here as the backend's own "Loan application already exists for
+      // this lead" message — it does not identify the existing application, so
+      // there is nothing extra to hand the caller.
+      const error = err as Error;
       return rejectWithValue(error.message || 'Failed to create application');
     }
   }
@@ -127,7 +133,7 @@ export const createAndVerifyLoanApplicationThunk = createAsyncThunk<
 );
 
 export const fetchLoanApplicationAPI = createAsyncThunk<
-  LoanApplicationSummary,
+  LoanApplicationSummary & { lenderName: string | null },
   string,
   { state: RootState }
 >(
@@ -135,7 +141,19 @@ export const fetchLoanApplicationAPI = createAsyncThunk<
   async (leadId: string, { rejectWithValue }) => {
     try {
       const cleanLeadId = normalizeLeadId(leadId);
-      return await loanService.findApplicationByLeadId(cleanLeadId);
+      const application = await loanService.findApplicationByLeadId(cleanLeadId);
+      let lenderName: string | null = null;
+
+      if (application.bank) {
+        try {
+          const bank = await getCatalogBank(application.bank);
+          lenderName = bank.data.brand_name?.trim() || bank.data.bank_name;
+        } catch (error) {
+          logger.error('Failed to resolve the application bank name:', error);
+        }
+      }
+
+      return { ...application, lenderName };
     } catch (err) {
       return rejectWithValue(err instanceof Error ? err.message : 'Failed to fetch application');
     }
@@ -300,6 +318,8 @@ export const newLoanFormSlice = createSlice({
         currentStep: 1,
         leadId: null,
         applicationId: null,
+        lenderName: null,
+        submittedAt: null,
         consentRequestData: null,
         otpVerified: false,
         uploadedDocuments: {},
@@ -328,14 +348,18 @@ export const newLoanFormSlice = createSlice({
     builder.addCase(fetchLoanApplicationAPI.fulfilled, (state, action) => {
       state.loadingStates.fetchApp = false;
       if (action.payload) {
-        const app = action.payload as { application_id?: string; step?: number };
+        const app = action.payload;
         state.applicationId = app.application_id || null;
+        state.lenderName = app.lenderName;
+        state.submittedAt = app.submitted_at || null;
         if (app.step && typeof app.step === 'number') {
           state.currentStep = app.step;
         }
       } else {
         // Clear applicationId to avoid stale state from previous lead
         state.applicationId = null;
+        state.lenderName = null;
+        state.submittedAt = null;
         state.currentStep = 1;
       }
     });
@@ -382,8 +406,9 @@ export const newLoanFormSlice = createSlice({
 
     // submitApplication
     builder.addCase(submitApplicationAPI.pending, (state) => { state.loadingStates.submitApp = true; state.errors.submitApp = null; });
-    builder.addCase(submitApplicationAPI.fulfilled, (state) => {
+    builder.addCase(submitApplicationAPI.fulfilled, (state, action) => {
       state.loadingStates.submitApp = false;
+      state.submittedAt = action.payload.data.submitted_at;
     });
     builder.addCase(submitApplicationAPI.rejected, (state, action) => { state.loadingStates.submitApp = false; state.errors.submitApp = action.payload as string; });
   }

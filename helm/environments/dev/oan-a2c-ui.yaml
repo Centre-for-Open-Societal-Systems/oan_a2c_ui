@@ -1,0 +1,27 @@
+# Values for the oan-a2c-ui chart (helm/oan-a2c-ui).
+# Release `a2c-ui`, namespace `a2c` (shared with the backend service).
+#
+# Set at install, not here:
+# - ui.image.tag: the Jenkins tag `0.0.1-develop.<build>`
+
+ui:
+  image:
+    # Jenkinsfile ECR_REPO for the develop branch: eoan/oan-a2c-ui/a2c-ui
+    # Node IAM role (oan-services-dev-ecr-pull) must allow ecr:BatchGetImage on this repo.
+    repository: 379220350808.dkr.ecr.ap-south-1.amazonaws.com/eoan/oan-a2c-ui/a2c-ui
+
+  env:
+    # Read at runtime (src/lib/env.ts), so one image serves every environment.
+    # No `/api`: the APISIX gateway serves the backend at `/v1/...` and rewrites to Frappe's `/api/v1/...`.
+    API_BASE_URL: https://a2c-service.development.oanstaging.com
+
+  ingress:
+    enabled: true
+    # The only IngressClass on oan_dev and not the default one: without it no controller serves the host.
+    className: apisix
+    hosts:
+    - host: a2c.development.oanstaging.com
+      # Helm replaces the chart's default host list, so the paths are repeated here.
+      paths:
+      - path: /
+        pathType: Prefix

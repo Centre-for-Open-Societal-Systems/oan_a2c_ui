@@ -6,15 +6,18 @@ import {
     selectOnboardingRegistrationStatus
 } from '@/features/seller/store/onboardingSlice';
 import { ErrorAlert } from '@/components/ui/ErrorAlert';
-import { PHONE_NUMBER_MAX_LENGTH } from '@/features/seller/constants/field-limits';
+import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
+import { usePhoneCountries } from '@/hooks/usePhoneCountries';
+import { PHONE_NUMBER_ERROR, isValidLocalPhone, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { registerSellerSchema } from '@/lib/api/api.schemas';
 import { toast } from '@/lib/toast';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
-import { ArrowRight, ChevronDown, Eye, EyeOff, Info, Lock, Mail, User } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Info, Lock, Mail, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 export function CreateAccountForm() {
+  const phoneCountries = usePhoneCountries();
   const router = useRouter();
   const dispatch = useAppDispatch();
   const registrationStatus = useAppSelector(selectOnboardingRegistrationStatus);
@@ -33,7 +36,12 @@ export function CreateAccountForm() {
     setLocalError(null);
     dispatch(clearOnboardingErrors());
 
-    const fullMobileNumber = `${countryCode}${phoneNumber.replace(/\D/g, '')}`;
+    if (!isValidLocalPhone(phoneNumber, countryCode)) {
+      setLocalError(PHONE_NUMBER_ERROR);
+      return;
+    }
+
+    const fullMobileNumber = `${countryCode}${phoneNumber}`;
 
     const validationResult = registerSellerSchema.safeParse({
       email,
@@ -102,26 +110,20 @@ export function CreateAccountForm() {
             Mobile number <span className="text-red-500">*</span>
           </label>
           <div className="flex gap-2">
-            <div className="relative w-[100px] shrink-0">
-              <select
-                value={countryCode}
-                onChange={(e) => setCountryCode(e.target.value)}
-                className="w-full appearance-none bg-white border border-gray-200 rounded-xl pl-4 pr-8 py-2.5 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#16A34A] focus:border-[#16A34A] transition-colors cursor-pointer"
-              >
-                <option value="+251">+251</option>
-                <option value="+255">+255</option>
-              </select>
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
-                <ChevronDown className="w-4 h-4" />
-              </div>
-            </div>
+            <CountryCodeSelect
+              value={countryCode}
+              onChange={setCountryCode}
+              options={phoneCountries}
+              showChevron
+              triggerClassName="flex items-center justify-between gap-2 w-[100px] shrink-0 bg-white border border-gray-200 rounded-xl pl-4 pr-3 py-2.5 text-sm text-gray-600 focus:outline-none focus:ring-1 focus:ring-[#16A34A] focus:border-[#16A34A] transition-colors cursor-pointer"
+            />
             <input
               type="tel"
+              inputMode="numeric"
               autoComplete="off"
-              maxLength={PHONE_NUMBER_MAX_LENGTH}
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
-              placeholder="Enter mobile Number"
+              onChange={(e) => setPhoneNumber(toLocalPhoneDigits(e.target.value, countryCode))}
+              placeholder="Enter phone number"
               className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#16A34A] focus:border-[#16A34A] text-sm text-gray-900 transition-colors"
               required
             />

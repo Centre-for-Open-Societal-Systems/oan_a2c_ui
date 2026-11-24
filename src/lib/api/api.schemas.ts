@@ -1,5 +1,6 @@
 import { logger } from '@/lib/logger';
 import { z } from 'zod';
+import { KNOWN_COUNTRY_CODES, PHONE_NUMBER_ERROR, isValidLocalPhone } from '@/lib/validation/phone';
 
 // 1. consent.verify_otp
 export const verifyOtpResponseSchema = z.object({
@@ -54,6 +55,7 @@ export const loanApplicationFullSchema = z.object({
   loan_product_name: z.string().nullish().transform(val => val ?? undefined),
   loan_reason: z.string().nullish().transform(val => val ?? ''),
   loan_officer: z.string().nullish().transform(val => val ?? undefined),
+  loan_officer_name: z.string().nullish().transform(val => val ?? undefined),
   first_name: z.string().nullish().transform(val => val ?? undefined),
   last_name: z.string().nullish().transform(val => val ?? undefined),
   father_name: z.string().nullable().optional(),
@@ -131,6 +133,7 @@ export const loanApplicationSummarySchema = z.object({
   kebele: z.string().nullish().transform((val) => val ?? undefined),
   phone_number: z.string().nullish().transform((val) => val ?? ''),
   creation: z.string(),
+  submitted_at: z.string().nullable().optional(),
   first_name: z.string().nullish().transform((val) => val ?? undefined),
   last_name: z.string().nullish().transform((val) => val ?? undefined),
   bank: z.string().nullish().transform((val) => val ?? undefined),
@@ -398,7 +401,12 @@ export const registerSellerSchema = z.object({
   email: z.string().email('Invalid email address format.'),
   full_name: z.string().min(2, 'Full name must be at least 2 characters long.'),
   password: strongPasswordSchema,
-  phone_number: z.string().min(8, 'Mobile number must be at least 8 digits.'),
+  // Dial code + exactly 9 local digits. A defense-in-depth check on the combined
+  // value, since the form validates the local part alone (isValidLocalPhone).
+  phone_number: z.string().refine(
+    (value) => KNOWN_COUNTRY_CODES.some((code) => value.startsWith(code) && isValidLocalPhone(value.slice(code.length), code)),
+    PHONE_NUMBER_ERROR,
+  ),
 });
 export type RegisterSellerSchemaPayload = z.infer<typeof registerSellerSchema>;
 

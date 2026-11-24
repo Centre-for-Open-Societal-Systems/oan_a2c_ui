@@ -1,39 +1,101 @@
 'use client';
-import { clearOnboardingErrors, saveOrgContacts, selectOnboardingMutationError, selectOnboardingMutationSource, selectOnboardingMutationStatus, updateBankStatus } from '@/features/seller/store/onboardingSlice';
+import {
+  clearOnboardingErrors,
+  saveOrgContacts,
+  selectBankProfile,
+  selectOnboardingMutationError,
+  selectOnboardingMutationSource,
+  selectOnboardingMutationStatus,
+} from '@/features/seller/store/onboardingSlice';
+import type { BankProfile } from '@/features/seller/api/onboarding.service';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
+import { CountryCodeSelect } from '@/components/ui/CountryCodeSelect';
+import { usePhoneCountries } from '@/hooks/usePhoneCountries';
+import { PHONE_NUMBER_ERROR, isValidLocalPhone, splitPhoneNumber, toLocalPhoneDigits } from '@/lib/validation/phone';
 import { Check, Loader2, UserCheck } from 'lucide-react';
 import { useState } from 'react';
 
 interface ContactFormState {
   groName: string;
+  groCode: string;
   groMobile: string;
   opsName: string;
+  opsCode: string;
   opsMobile: string;
 }
 
-const initialFormState: ContactFormState = {
-  groName: '',
-  groMobile: '',
-  opsName: '',
-  opsMobile: '',
-};
+// The profile holds E.164 numbers; the form edits the dial code and local digits separately.
+function toFormState(profile?: BankProfile | null): ContactFormState {
+  const gro = splitPhoneNumber(profile?.gro_mobile ?? '');
+  const ops = splitPhoneNumber(profile?.ops_mobile ?? '');
+  return {
+    groName: profile?.gro_name ?? '',
+    groCode: gro.countryCode,
+    groMobile: gro.localDigits,
+    opsName: profile?.ops_name ?? '',
+    opsCode: ops.countryCode,
+    opsMobile: ops.localDigits,
+  };
+}
 
-export function OrganizationContactsCard() {
+interface OrganizationContactsCardProps {
+  profile?: BankProfile | null;
+}
+
+export function OrganizationContactsCard({ profile }: OrganizationContactsCardProps = {}) {
+  const phoneCountries = usePhoneCountries();
   const dispatch = useAppDispatch();
-  const [form, setForm] = useState<ContactFormState>(initialFormState);
-  const [localError, setLocalError] = useState<string | null>(null);
-  const [isSaved, setIsSaved] = useState(false);
   const mutationStatus = useAppSelector(selectOnboardingMutationStatus);
   const mutationErrorRaw = useAppSelector(selectOnboardingMutationError);
   const mutationSource = useAppSelector(selectOnboardingMutationSource);
-  // handleSave drives both saveOrgContacts and (on success) updateBankStatus,
-  // so this card owns errors from either — but not the document card's upload.
-  const isOwnMutation = mutationSource === 'contacts' || mutationSource === 'bankStatus';
+  const storeProfile = useAppSelector(selectBankProfile);
+  const currentProfile = profile ?? storeProfile;
+
+  const [prevProfile, setPrevProfile] = useState(currentProfile);
+  const [form, setForm] = useState<ContactFormState>(() => toFormState(currentProfile));
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [isSaved, setIsSaved] = useState(() =>
+    Boolean(currentProfile?.org_grievance_updated || (currentProfile?.gro_name && currentProfile?.gro_mobile))
+  );
+
+  const [isDirty, setIsDirty] = useState(false);
+
+  const prevContactSignature = prevProfile
+    ? `${prevProfile.gro_name}:${prevProfile.gro_mobile}:${prevProfile.ops_name}:${prevProfile.ops_mobile}:${prevProfile.org_grievance_updated}`
+    : null;
+  const currentContactSignature = currentProfile
+    ? `${currentProfile.gro_name}:${currentProfile.gro_mobile}:${currentProfile.ops_name}:${currentProfile.ops_mobile}:${currentProfile.org_grievance_updated}`
+    : null;
+
+  if (currentContactSignature !== prevContactSignature) {
+    setPrevProfile(currentProfile);
+    if (!isDirty) {
+      setForm(toFormState(currentProfile));
+      setIsSaved(Boolean(currentProfile?.org_grievance_updated || (currentProfile?.gro_name && currentProfile?.gro_mobile)));
+    }
+  }
+
+  const handleInputChange = (field: keyof ContactFormState, value: string) => {
+    setIsDirty(true);
+    setForm((current) => ({ ...current, [field]: value }));
+    setIsSaved(false);
+    setLocalError(null);
+  };
+
+  // handleSave drives saveOrgContacts, so this card owns errors from contacts —
+  // but not the document card's upload.
+  const isOwnMutation = mutationSource === 'contacts';
   const mutationError = isOwnMutation ? mutationErrorRaw : null;
 
   const handleSave = async () => {
     if (!form.groName.trim() || !form.groMobile.trim() || !form.opsName.trim() || !form.opsMobile.trim()) {
       setLocalError('Please fill in all contact fields.');
+      setIsSaved(false);
+      return;
+    }
+
+    if (!isValidLocalPhone(form.groMobile, form.groCode) || !isValidLocalPhone(form.opsMobile, form.opsCode)) {
+      setLocalError(PHONE_NUMBER_ERROR);
       setIsSaved(false);
       return;
     }
@@ -45,19 +107,15 @@ export function OrganizationContactsCard() {
     const result = await dispatch(
       saveOrgContacts({
         gro_name: form.groName.trim(),
-        gro_mobile: form.groMobile.trim(),
+        gro_mobile: `${form.groCode}${form.groMobile}`,
         ops_name: form.opsName.trim(),
-        ops_mobile: form.opsMobile.trim(),
+        ops_mobile: `${form.opsCode}${form.opsMobile}`,
       })
     );
 
     if (saveOrgContacts.fulfilled.match(result)) {
+      setIsDirty(false);
       setIsSaved(true);
-      await dispatch(
-        updateBankStatus({
-          new_status: 'Active',
-        })
-      );
     }
   };
 
@@ -84,19 +142,29 @@ export function OrganizationContactsCard() {
                 type="text"
                 placeholder="Enter full name"
                 value={form.groName}
-                onChange={(event) => setForm((current) => ({ ...current, groName: event.target.value }))}
+                onChange={(event) => handleInputChange('groName', event.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
             <div className="space-y-1.5">
               <label className="text-[14px] font-bold text-gray-900">Mobile No.</label>
-              <input
-                type="text"
-                placeholder="Enter mobile number"
-                value={form.groMobile}
-                onChange={(event) => setForm((current) => ({ ...current, groMobile: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+              <div className="flex gap-3">
+                <CountryCodeSelect
+                  value={form.groCode}
+                  onChange={(code) => handleInputChange('groCode', code)}
+                  options={phoneCountries}
+                  showChevron
+                  triggerClassName="flex w-[100px] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Enter phone number"
+                  value={form.groMobile}
+                  onChange={(event) => handleInputChange('groMobile', toLocalPhoneDigits(event.target.value, form.groCode))}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
             </div>
           </div>
 
@@ -107,19 +175,29 @@ export function OrganizationContactsCard() {
                 type="text"
                 placeholder="Enter full name"
                 value={form.opsName}
-                onChange={(event) => setForm((current) => ({ ...current, opsName: event.target.value }))}
+                onChange={(event) => handleInputChange('opsName', event.target.value)}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
               />
             </div>
             <div className="space-y-1.5">
               <label className="text-[14px] font-bold text-gray-900">Mobile No.</label>
-              <input
-                type="text"
-                placeholder="Enter mobile number"
-                value={form.opsMobile}
-                onChange={(event) => setForm((current) => ({ ...current, opsMobile: event.target.value }))}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
-              />
+              <div className="flex gap-3">
+                <CountryCodeSelect
+                  value={form.opsCode}
+                  onChange={(code) => handleInputChange('opsCode', code)}
+                  options={phoneCountries}
+                  showChevron
+                  triggerClassName="flex w-[100px] items-center justify-between gap-2 rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="Enter phone number"
+                  value={form.opsMobile}
+                  onChange={(event) => handleInputChange('opsMobile', toLocalPhoneDigits(event.target.value, form.opsCode))}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-[14px] transition-all focus:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500"
+                />
+              </div>
             </div>
           </div>
         </div>

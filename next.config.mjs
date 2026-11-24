@@ -32,7 +32,7 @@ export default function config(phase) {
       ignoreBuildErrors: false,
     },
 
-    allowedDevOrigins: ['192.168.3.1'],
+    allowedDevOrigins: ['192.168.3.1', 'local.development.oanstaging.com'],
 
     sassOptions: {
       includePaths: ['./src/assets/styles'],
@@ -75,6 +75,18 @@ export default function config(phase) {
               key: 'Strict-Transport-Security',
               value: 'max-age=31536000; includeSubDomains; preload',
             },
+          ],
+        },
+        {
+          source: '/api/proxy/:path*',
+          headers: [
+            { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          ],
+        },
+        {
+          source: '/api/files/:path*',
+          headers: [
+            { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
           ],
         },
       ];

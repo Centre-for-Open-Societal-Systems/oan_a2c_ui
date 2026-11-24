@@ -1,6 +1,9 @@
+import { authEnvelopeLogMessage } from '@/lib/api/authEnvelope';
 import { AUTH_MESSAGES } from '@/lib/authMessages';
 import { getClientIp } from '@/lib/clientIp';
+import { readAppIamSession } from '@/lib/activeSession';
 import { checkCsrf } from '@/lib/csrf';
+import { applyIamCookies, clearLoginOptionCookie, refreshIamSession, type IamSession } from '@/lib/iamSession';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rateLimit';
@@ -14,6 +17,28 @@ import {
 } from '@/lib/session';
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+
+/**
+ * Renews an SSO (IAM) session through oan_auth_service, which has the option's
+ * IAM refresh it and answers with IAM's new cookies, relayed unchanged. When
+ * the session is over the browser's session ends too; when IAM is unreachable
+ * it is kept, and the caller can try again.
+ */
+async function renewIamSession(iam: IamSession, clientIp: string): Promise<NextResponse> {
+  const renewed = await refreshIamSession(iam, clientIp);
+  if (renewed.status === 'down') {
+    return NextResponse.json({ message: AUTH_MESSAGES.signInUnavailable }, { status: 503 });
+  }
+  if (renewed.status === 'ended') {
+    const response = endSession(AUTH_MESSAGES.sessionExpired);
+    clearLoginOptionCookie(response);
+    applyIamCookies(response, renewed.setCookies);
+    return response;
+  }
+  const response = NextResponse.json({ success: true, message: 'Token refreshed successfully' });
+  applyIamCookies(response, renewed.setCookies);
+  return response;
+}
 
 /** Ends the session in the browser and tells the client to sign in again. */
 function endSession(message: string, status = 401): NextResponse {
@@ -44,6 +69,8 @@ export async function POST(request: NextRequest) {
     const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
 
     if (!refreshToken) {
+      const iam = readAppIamSession(request);
+      if (iam) return renewIamSession(iam, clientIp);
       return endSession(AUTH_MESSAGES.sessionExpired);
     }
 
@@ -57,7 +84,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Call external API to refresh the JWT
-    const response = await fetch(`${env.API_BASE_URL}/api/method/oan_a2c.api.auth.refresh`, {
+    const response = await fetch(`${env.API_BASE_URL}/v1/auth/refresh`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -75,13 +102,13 @@ export async function POST(request: NextRequest) {
       // which of those it is holding.
       logger.security(
         `Token refresh failed on backend, status ${response.status}:`,
-        typeof data?.message === 'string' ? data.message : JSON.stringify(data?.message ?? data)
+        authEnvelopeLogMessage(data)
       );
       return endSession(AUTH_MESSAGES.sessionExpired);
     }
 
-    const token = data.message?.data?.token as string | undefined;
-    const newRefreshToken = data.message?.data?.refresh_token as string | undefined;
+    const token = data?.data?.access_token as string | undefined;
+    const newRefreshToken = data?.data?.refresh_token as string | undefined;
 
     if (!token || !newRefreshToken) {
       logger.error('Invalid token payload returned from refresh API');

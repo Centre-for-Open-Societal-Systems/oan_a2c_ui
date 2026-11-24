@@ -3,6 +3,7 @@ export interface RegisterSellerPayload {
   full_name: string;
   password: string;
   phone_number: string;
+  role?: string;
 }
 
 export interface SaveOrgContactsPayload {
@@ -23,6 +24,8 @@ export interface RegisterBankPayload {
   entity_type: string;
   bank_code: string;
   registered_street: string;
+  registered_kebele_village?: string;
+  registered_woreda_district?: string;
   registered_zone: string;
   registered_region: string;
   registered_country: string;
@@ -30,9 +33,5 @@ export interface RegisterBankPayload {
   registered_email: string;
   registered_phone: string;
   website: string | null;
-}
-
-export interface UpdateBankStatusPayload {
-  new_status: 'In Review' | 'Active' | 'Suspended';
 }
 

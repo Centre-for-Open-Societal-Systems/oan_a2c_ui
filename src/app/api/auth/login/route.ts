@@ -1,8 +1,11 @@
+import { authEnvelopeLogMessage } from '@/lib/api/authEnvelope';
 import { AUTH_MESSAGES } from '@/lib/authMessages';
 import { getClientIp } from '@/lib/clientIp';
 import { checkCsrf } from '@/lib/csrf';
 import { env } from '@/lib/env';
 import { logger } from '@/lib/logger';
+import { clearLoginOptionCookie } from '@/lib/iamSession';
+import { flattenMe } from '@/lib/meMapper';
 import { checkRateLimit, rateLimitedResponse } from '@/lib/rateLimit';
 import { RATE_LIMITS } from '@/lib/securityConfig';
 import { setSessionCookies } from '@/lib/session';
@@ -44,7 +47,7 @@ export async function POST(request: Request) {
     // which keys its own login rate limit and attempt tracker — without this the
     // bench would see this container's address for every sign-in on the platform
     // and throttle everyone as one bucket.
-    const response = await fetch(`${env.API_BASE_URL}/api/method/oan_a2c.api.auth.login`, {
+    const response = await fetch(`${env.API_BASE_URL}/v1/auth/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -60,7 +63,7 @@ export async function POST(request: Request) {
     // one that must be rotated first. The backend deliberately issued no token, so
     // there is nothing to set as a cookie — forward the code and the login id the
     // caller typed so the client can show the set-password step instead of an error.
-    if (data?.message?.code === 'PASSWORD_CHANGE_REQUIRED') {
+    if (data?.code === 'PASSWORD_CHANGE_REQUIRED') {
       return NextResponse.json(
         {
           code: 'PASSWORD_CHANGE_REQUIRED',
@@ -77,7 +80,7 @@ export async function POST(request: Request) {
       // a stack-trace viewer). See lib/authMessages.ts.
       logger.security(
         `Login rejected for ${clientIp} with status ${response.status}:`,
-        typeof data?.message === 'string' ? data.message : JSON.stringify(data?.message ?? data)
+        authEnvelopeLogMessage(data)
       );
 
       const status = response.status >= 500 ? 502 : 401;
@@ -91,10 +94,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ message }, { status: response.status === 429 ? 429 : status });
     }
 
-    // Extract the JWT token, refresh token, and user strictly based on the provided API response structure
-    const token = data.message?.data?.token as string | undefined;
-    const refreshToken = data.message?.data?.refresh_token as string | undefined;
-    const user = data.message?.data?.user ?? null;
+    // Extract the JWT token and refresh token strictly based on the REST envelope.
+    // The login response carries no profile: user type and bank come from /auth/me.
+    const token = data?.data?.access_token as string | undefined;
+    const refreshToken = data?.data?.refresh_token as string | undefined;
+
+    const meResponse = token
+      ? await fetch(`${env.API_BASE_URL}/v1/auth/me`, {
+          headers: {
+            Accept: 'application/json',
+            Authorization: `Bearer ${token}`,
+            'X-Forwarded-For': clientIp,
+          },
+        })
+      : null;
+    const meData = meResponse ? await meResponse.json().catch(() => ({})) : {};
+    const user = meResponse?.ok ? flattenMe(meData?.data) : null;
+
+    if (!user) {
+      logger.error('Login succeeded but the profile could not be loaded from /v1/auth/me');
+      return NextResponse.json({ message: AUTH_MESSAGES.signInUnavailable }, { status: 502 });
+    }
 
     const nextResponse = NextResponse.json({
       success: true,
@@ -106,6 +126,9 @@ export async function POST(request: Request) {
     // can reapply the same lifetime instead of silently promoting a one-day
     // session to a thirty-day one.
     setSessionCookies(nextResponse, { token, refreshToken, rememberMe });
+    // At most one session kind at a time: a local sign-in drops the IAM login
+    // option, as the SSO landing route drops the local session.
+    clearLoginOptionCookie(nextResponse);
 
     return nextResponse;
   } catch (error) {

@@ -53,6 +53,19 @@ export function CreditInformationModal({ isOpen, onClose, onSubmit }: CreditInfo
 
   if (!isOpen) return null;
 
+  // Banks can each offer a product with the same name (e.g. two "Crop Loan"s).
+  // Keying the dropdown on the bare name collapsed them into one option and made
+  // the first bank's product the only one selectable, so a name shared by
+  // several products is disambiguated with its bank.
+  const nameCounts = new Map<string, number>();
+  for (const p of products) {
+    nameCounts.set(p.product_name, (nameCounts.get(p.product_name) ?? 0) + 1);
+  }
+  const optionLabel = (p: FarmerLoanProduct) =>
+    (nameCounts.get(p.product_name) ?? 0) > 1
+      ? `${p.product_name} — ${p.bank_name || p.bank}`
+      : p.product_name;
+
   const handleSubmit = async () => {
     // 1. Run local Zod schema validation
     const validationResult = creditInfoSchema.safeParse({ loanType, loanAmount, purposeMessage });
@@ -74,7 +87,7 @@ export function CreditInformationModal({ isOpen, onClose, onSubmit }: CreditInfo
     setError(null);
     setFieldErrors({});
     try {
-      const selectedProduct = products.find((p) => p.product_name === validationResult.data.loanType);
+      const selectedProduct = products.find((p) => optionLabel(p) === validationResult.data.loanType);
       const payload: CreditInfoFormData & { productId?: string } = { ...validationResult.data };
       if (selectedProduct?.name) {
         payload.productId = selectedProduct.name;
@@ -108,10 +121,10 @@ export function CreditInformationModal({ isOpen, onClose, onSubmit }: CreditInfo
     setError(null);
   };
 
-  const selectedProduct = products.find((p) => p.product_name === loanType);
+  const selectedProduct = products.find((p) => optionLabel(p) === loanType);
   const selectedCategory = selectedProduct ? resolveCategory(selectedProduct) : undefined;
 
-  const productOptions = [...new Set(products.map((p) => p.product_name))];
+  const productOptions = products.map(optionLabel);
 
   const modalContent = (
     <>

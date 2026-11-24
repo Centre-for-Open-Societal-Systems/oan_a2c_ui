@@ -8,7 +8,7 @@ import {
     type LoanMetadata
 } from '@/lib/api/api.schemas';
 import { fetchApi } from '@/lib/api/fetchApi';
-import { normalizeLeadId } from '@/lib/utils';
+import { normalizeLeadId, withQuery } from '@/lib/utils';
 import type { ApiResponse } from '@/types/api';
 import { z } from 'zod';
 import type { LoanFormData } from '../types/loans.types';
@@ -85,6 +85,10 @@ export interface CreateLoanApplicationResponse {
   };
 }
 
+export interface SubmitLoanApplicationResponse {
+  submitted_at: string;
+}
+
 
 export interface GetLoansParams {
   page?: number;
@@ -124,8 +128,6 @@ export interface GetLoansParams {
    * backend moved off Frappe's static workflow states.
    */
   status?: string;
-  /** A bank's own stage label (A2C Loan Status Stage). Tenant free text, comma-separated. */
-  stage_label?: string;
   min_loan_amount?: string;
   max_loan_amount?: string;
   /** One or more loan types, comma-separated (`parse_multi_value`). Shares the
@@ -163,7 +165,7 @@ export const loanService = {
       });
     }
 
-    const path = `oan_a2c.api.v1.loan_applications.get_all_loans?${searchParams.toString()}`;
+    const path = withQuery('v1/loan-applications', searchParams);
     const response = await fetchApi(path, options) as ApiResponse<LoanApplicationSummary[]>;
     return {
       ...response,
@@ -172,7 +174,7 @@ export const loanService = {
   },
 
   async getLoanSummary(): Promise<ApiResponse<LoanSummaryMetrics>> {
-    return fetchApi('oan_a2c.api.v1.loan_applications.get_loan_summary') as Promise<ApiResponse<LoanSummaryMetrics>>;
+    return fetchApi('v1/loan-applications/summary') as Promise<ApiResponse<LoanSummaryMetrics>>;
   },
 
   /**
@@ -184,7 +186,7 @@ export const loanService = {
    */
   async getLoanMetadata(options?: RequestInit): Promise<ApiResponse<LoanMetadata>> {
     const response = await fetchApi(
-      'oan_a2c.api.v1.loan_applications.get_loan_metadata',
+      'v1/loan-applications/metadata',
       options,
     ) as ApiResponse<LoanMetadata>;
     return {
@@ -193,13 +195,18 @@ export const loanService = {
     };
   },
 
-  async downloadSupportingDocument(file_id: string, view = 0): Promise<null> {
-    return fetchApi(`oan_a2c.api.v1.loan_applications.download_supporting_document?file_id=${file_id}&view=${view}`) as Promise<null>;
+  getSupportingDocumentUrl(applicationId: string, fileId: string | number, view: 0 | 1 = 0): string {
+    return `/api/proxy/v1/loan-applications/${encodeURIComponent(applicationId)}/documents/${encodeURIComponent(fileId)}/content?view=${view}`;
   },
 
-  async getFullProfile(application_id: string): Promise<ApiResponse<LoanApplicationFull>> {
+  async downloadSupportingDocument(file_id: string, view = 0, application_id = 'current'): Promise<null> {
+    return fetchApi(`v1/loan-applications/${encodeURIComponent(application_id)}/documents/${encodeURIComponent(file_id)}/content?view=${view}`) as Promise<null>;
+  },
+
+  async getFullProfile(application_id: string, options?: RequestInit): Promise<ApiResponse<LoanApplicationFull>> {
     const response = await fetchApi(
-      `oan_a2c.api.v1.loan_applications.get_full_profile?application_id=${application_id}`,
+      `v1/loan-applications/${encodeURIComponent(application_id)}/full-profile`,
+      options,
     ) as ApiResponse<LoanApplicationFull>;
     return {
       ...response,
@@ -208,7 +215,7 @@ export const loanService = {
   },
 
   async getSupportingDocuments(application_id: string): Promise<ApiResponse<SupportingDocument[]>> {
-    return fetchApi(`oan_a2c.api.v1.loan_applications.get_supporting_documents?application_id=${application_id}`) as Promise<ApiResponse<SupportingDocument[]>>;
+    return fetchApi(`v1/loan-applications/${encodeURIComponent(application_id)}/documents`) as Promise<ApiResponse<SupportingDocument[]>>;
   },
 
   async uploadSupportingDocument(application_id: string, document_type: string, file: File): Promise<ApiResponse<SupportingDocument>> {
@@ -216,7 +223,7 @@ export const loanService = {
     formData.append('document_type', document_type);
     formData.append('file', file);
 
-    return fetchApi(`oan_a2c.api.v1.loan_applications.upload_supporting_documents?application_id=${application_id}`, {
+    return fetchApi(`v1/loan-applications/${encodeURIComponent(application_id)}/documents`, {
       method: 'POST',
       body: formData,
     }) as Promise<ApiResponse<SupportingDocument>>;
@@ -227,9 +234,8 @@ export const loanService = {
   },
 
   async deleteSupportingDocument(application_id: string, file_id: string): Promise<ApiResponse<null>> {
-    return fetchApi('oan_a2c.api.v1.loan_applications.delete_supporting_document', {
-      method: 'POST',
-      body: JSON.stringify({ application_id, file_id }),
+    return fetchApi(`v1/loan-applications/${encodeURIComponent(application_id)}/documents/${encodeURIComponent(file_id)}`, {
+      method: 'DELETE',
     }) as Promise<ApiResponse<null>>;
   },
 
@@ -242,15 +248,14 @@ export const loanService = {
    * stamps `stage_id` and `stage_label`, and transitions the application into
    * the active pipeline.
    */
-  async submitApplication(application_id: string): Promise<ApiResponse<null>> {
-    return fetchApi('oan_a2c.api.v1.farmer.applications.submit_application', {
+  async submitApplication(application_id: string): Promise<ApiResponse<SubmitLoanApplicationResponse>> {
+    return fetchApi(`v1/applications/${encodeURIComponent(application_id)}/submit`, {
       method: 'POST',
-      body: JSON.stringify({ application_id }),
-    }) as Promise<ApiResponse<null>>;
+    }) as Promise<ApiResponse<SubmitLoanApplicationResponse>>;
   },
 
   async createLoanApplication(lead_id: string): Promise<ApiResponse<CreateLoanApplicationResponse>> {
-    return fetchApi('oan_a2c.api.v1.loan_applications.create_loan_application', {
+    return fetchApi('v1/loan-applications', {
       method: 'POST',
       body: JSON.stringify({ lead_id: normalizeLeadId(lead_id) }),
     }) as Promise<ApiResponse<CreateLoanApplicationResponse>>;
@@ -269,18 +274,18 @@ export const loanService = {
    * there is one free-text field here now, and it is this one.
    */
   async updateLoanStatus(application_id: string, status: string, reason?: string): Promise<ApiResponse<null>> {
-    return fetchApi('oan_a2c.api.v1.loan_applications.update_loan_status', {
-      method: 'POST',
+    return fetchApi(`v1/loan-applications/${encodeURIComponent(application_id)}/status`, {
+      method: 'PATCH',
       // Omitted rather than sent as undefined: `reason` is optional and an
       // explicit null would land in the audit trail as an empty remark.
-      body: JSON.stringify({ application_id, status, ...(reason ? { reason } : {}) }),
+      body: JSON.stringify({ status, ...(reason ? { reason } : {}) }),
     }) as Promise<ApiResponse<null>>;
   },
 
   async updateLoanStep(application_id: string, step: number): Promise<ApiResponse<null>> {
-    return fetchApi('oan_a2c.api.v1.loan_applications.update_loan_step', {
-      method: 'POST',
-      body: JSON.stringify({ application_id, step }),
+    return fetchApi(`v1/loan-applications/${encodeURIComponent(application_id)}/step`, {
+      method: 'PATCH',
+      body: JSON.stringify({ step }),
     }) as Promise<ApiResponse<null>>;
   },
 

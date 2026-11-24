@@ -2,7 +2,7 @@
 
 import { useIdleSession } from '@/features/auth/hooks/useIdleSession';
 import { performGlobalLogout } from '@/features/auth/logout';
-import { selectIsAuthenticated } from '@/features/auth/store/authSlice';
+import { selectIsAuthenticated, selectUserKind } from '@/features/auth/store/authSlice';
 import { useModalA11y } from '@/hooks/useModalA11y';
 import { useAppDispatch, useAppSelector } from '@/store/hooks';
 import { Clock } from 'lucide-react';
@@ -20,6 +20,9 @@ import { useCallback, useRef } from 'react';
 export function IdleSessionWatcher() {
   const dispatch = useAppDispatch();
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
+  // Development Agents sign in through SSO, whose idle timeout is Keycloak's.
+  // Signing them out here would end their SSO session in every OpenG2P app.
+  const isIdleManaged = useAppSelector(selectUserKind) !== 'dev_agent';
 
   // The shared sign-out path — same revoke, same reset, same `/login`
   // destination as the menu item and the 401 middleware. It carries its own
@@ -31,11 +34,11 @@ export function IdleSessionWatcher() {
   );
 
   const { isWarning, secondsRemaining, staySignedIn } = useIdleSession(
-    isAuthenticated,
+    isAuthenticated && isIdleManaged,
     handleExpire
   );
 
-  const isOpen = isAuthenticated && isWarning;
+  const isOpen = isAuthenticated && isIdleManaged && isWarning;
   const staySignedInRef = useRef<HTMLButtonElement>(null);
 
   // Same dialog behavior as every other modal: Tab is trapped inside, the page
@@ -57,7 +60,7 @@ export function IdleSessionWatcher() {
       aria-modal="true"
       aria-labelledby="idle-warning-title"
       aria-describedby="idle-warning-body"
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
+      className="fixed inset-0 z-max flex items-center justify-center bg-black/40 p-4"
     >
       <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
         <div className="flex items-start gap-4">

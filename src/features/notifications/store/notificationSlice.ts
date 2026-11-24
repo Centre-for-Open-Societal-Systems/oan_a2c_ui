@@ -24,8 +24,8 @@ const initialState: NotificationState = {
 
 export function getNotificationId(item: NotificationItem, fallbackIndex?: number): string {
   return (
+    item.id ||
     item.name ||
-    (item as { id?: string }).id ||
     (item as { notification_id?: string }).notification_id ||
     (fallbackIndex != null ? `notif-${fallbackIndex}` : '')
   );
@@ -122,40 +122,61 @@ export const notificationSlice = createSlice({
         state.error = action.payload ?? 'Error fetching notifications';
       })
       // Mark Read (mutate on fulfilled)
+      .addCase(markNotificationsRead.pending, (state) => {
+        state.error = null;
+      })
       .addCase(markNotificationsRead.fulfilled, (state, action: PayloadAction<MarkReadParams>) => {
         const arg = action.payload;
-        if (arg.mark_all) {
+        const markAll = arg.all ?? arg.mark_all ?? false;
+        const targetIds = arg.ids ?? arg.notification_ids;
+        const read = arg.read ?? true;
+        if (markAll) {
           state.items.forEach((item) => {
-            item.read = 1;
+            item.read = read;
           });
-          state.unreadCount = 0;
-        } else if (arg.notification_ids?.length) {
-          const ids = new Set(arg.notification_ids);
+          if (read) state.unreadCount = 0;
+        } else if (targetIds?.length) {
+          const ids = new Set(targetIds);
+          let unreadDelta = 0;
           state.items.forEach((item) => {
             const id = getNotificationId(item);
             if (id && ids.has(id)) {
-              item.read = 1;
+              const wasUnread = isItemUnread(item);
+              item.read = read;
+              const isUnread = isItemUnread(item);
+              unreadDelta += Number(isUnread) - Number(wasUnread);
             }
           });
-          state.unreadCount = state.items.filter(isItemUnread).length;
+          // `unreadCount` is the server's total across every page. Adjust it by
+          // only the items changed here instead of replacing it with the count
+          // from the currently loaded page.
+          state.unreadCount = Math.max(0, state.unreadCount + unreadDelta);
         }
       })
       .addCase(markNotificationsRead.rejected, (state, action) => {
         state.error = action.payload ?? 'Failed to mark notifications as read';
       })
       // Clear Notifications (mutate on fulfilled)
+      .addCase(clearNotifications.pending, (state) => {
+        state.error = null;
+      })
       .addCase(clearNotifications.fulfilled, (state, action: PayloadAction<ClearNotificationsParams>) => {
         const arg = action.payload;
-        if (arg.clear_all) {
+        const clearAll = arg.all ?? arg.clear_all ?? false;
+        const targetIds = arg.ids ?? arg.notification_ids;
+        if (clearAll) {
           state.items = [];
           state.unreadCount = 0;
-        } else if (arg.notification_ids?.length) {
-          const ids = new Set(arg.notification_ids);
+        } else if (targetIds?.length) {
+          const ids = new Set(targetIds);
+          let removedUnreadCount = 0;
           state.items = state.items.filter((item) => {
             const id = getNotificationId(item);
-            return !id || !ids.has(id);
+            const shouldRemove = Boolean(id && ids.has(id));
+            if (shouldRemove && isItemUnread(item)) removedUnreadCount += 1;
+            return !shouldRemove;
           });
-          state.unreadCount = state.items.filter(isItemUnread).length;
+          state.unreadCount = Math.max(0, state.unreadCount - removedUnreadCount);
         }
       })
       .addCase(clearNotifications.rejected, (state, action) => {

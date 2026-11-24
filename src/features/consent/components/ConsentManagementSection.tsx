@@ -188,6 +188,7 @@ export function ConsentManagementSection({ leadId: leadIdProp, audience = 'agent
                 placeholder={isFarmer ? "Enter your Fayda ID or National ID" : "Search by Farmer ID or National ID"}
                 className="flex w-full items-center justify-between rounded-lg border px-4 py-3 text-sm shadow-sm transition-all focus:outline-none focus-visible:ring-[0.02rem] focus-visible:ring-green-600 focus-visible:ring-offset-0 border-gray-200 hover:border-green-600 bg-white ring-1 ring-green-600/15"
               />
+              {!isFarmer && (
               <button
                 type="button"
                 onClick={() => {
@@ -200,8 +201,9 @@ export function ConsentManagementSection({ leadId: leadIdProp, audience = 'agent
               >
                 {isSearchingFarmer ? 'Searching...' : 'Search'}
               </button>
+              )}
             </div>
-            {searchedFarmer?.firstName && (
+            {!isFarmer && searchedFarmer?.firstName && (
               <div className="text-[13px] text-green-600 font-medium bg-[#F0FDFA] border border-[#DCFCE7] rounded px-3 py-1.5 w-full break-all">
                 {isFarmer ? 'Matched: ' : 'Farmer: '}{searchedFarmer.firstName} {searchedFarmer.lastName} ({searchedFarmer.phoneNumber})
               </div>
@@ -209,7 +211,7 @@ export function ConsentManagementSection({ leadId: leadIdProp, audience = 'agent
             <button
               type="button"
               onClick={handleSendOtp}
-              disabled={!searchedFarmer?.firstName || isLoadingConsent || isSearchingFarmer}
+              disabled={(isFarmer ? !farmerId?.trim() : !searchedFarmer?.firstName) || isLoadingConsent || isSearchingFarmer}
               className="w-full h-[42px] rounded-md bg-[#16A34A] text-[15px] font-bold text-white hover:bg-[#15803d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex items-center justify-center"
             >
               <span className='font-semibold'>{isLoadingConsent ? 'Sending...' : 'Send OTP'}</span>

@@ -5,6 +5,8 @@ import { LoanTableRow } from '@/features/loans/components/LoanTable';
 // eslint-disable-next-line boundaries/dependencies -- TODO (2026-08-23): needs to be fixed later; hiding for now as this existed before our changes
 import LoanApplicationModal from '@/features/loans/components/modals/LoanApplicationModalLegacy';
 import { resetForm } from '@/features/new-loan/store/newLoanFormSlice';
+import { downloadLoanApplicationPdf } from '@/features/new-loan/utils/downloadLoanApplicationPdf';
+import { logger } from '@/lib/logger';
 import type { RootState } from '@/store';
 import { Calendar, Check, Download, FileText, LayoutDashboard, User } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -15,23 +17,28 @@ export function Step4Success() {
   const router = useRouter();
   const dispatch = useDispatch();
   const [showSummaryPopup, setShowSummaryPopup] = useState(false);
-  // Captured once (lazy initializer) rather than called directly in the render
-  // body, where Date.now() would return a new value on every re-render.
-  const [submittedAt] = useState(() => Date.now());
+  const [downloadError, setDownloadError] = useState<string | null>(null);
   const formData = useSelector((state: RootState) => state.loanForm.formData);
   const applicationId = useSelector((state: RootState) => state.loanForm.applicationId);
+  const lenderName = useSelector((state: RootState) => state.loanForm.lenderName);
+  const submittedAt = useSelector((state: RootState) => state.loanForm.submittedAt);
 
   const farmerName = `${formData.firstName || ''} ${formData.lastName || ''}`.trim() || "—";
 
-  const formattedSubmittedDate = new Date().toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  }) + ' ' + new Date().toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true
-  });
+  const submittedDate = submittedAt ? new Date(submittedAt) : null;
+  const submittedTimestamp = submittedDate?.getTime() ?? null;
+  const hasValidSubmittedDate = submittedDate !== null && submittedTimestamp !== null && !Number.isNaN(submittedTimestamp);
+  const formattedSubmittedDate = hasValidSubmittedDate
+    ? `${submittedDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })} ${submittedDate.toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      })}`
+    : 'Not available';
 
   const modalData: LoanTableRow = {
     id: applicationId || '—',
@@ -46,13 +53,43 @@ export function Step4Success() {
     loanTerm: formData.duration || "—",
     loanAmount: formData.requestedAmount ? `ETB ${parseFloat(formData.requestedAmount).toLocaleString()}` : "—",
     action: "view",
-    timestamp: submittedAt,
+    timestamp: hasValidSubmittedDate ? submittedTimestamp : null,
   };
 
   const handleReturnToDashboard = () => {
     dispatch(resetForm());
     window.scrollTo({ top: 0, behavior: 'smooth' });
     router.push('/loan-application-dashboard');
+  };
+
+  const handleDownloadPdf = () => {
+    if (!applicationId) {
+      setDownloadError('The application ID is missing, so the PDF could not be generated.');
+      return;
+    }
+
+    if (!hasValidSubmittedDate || !submittedDate) {
+      setDownloadError('The submission time is missing, so the PDF could not be generated.');
+      return;
+    }
+
+    setDownloadError(null);
+    try {
+      downloadLoanApplicationPdf({
+        applicationId,
+        applicantName: farmerName,
+        submittedAt: submittedDate,
+        loanType: formData.loanType || null,
+        purpose: formData.purpose || null,
+        requestedAmount: formData.requestedAmount || null,
+        duration: formData.duration || null,
+        phone: formData.mobilePhone || null,
+        region: formData.region || null,
+      });
+    } catch (error) {
+      logger.error('Failed to download loan application PDF', { applicationId, error });
+      setDownloadError('The PDF could not be generated. Please try again.');
+    }
   };
 
   return (
@@ -70,7 +107,7 @@ export function Step4Success() {
 
           <h2 className="text-[28px] font-bold mb-3 relative z-10 tracking-tight">Application Submitted Successfully!</h2>
           <p className="text-green-50 text-[15px] max-w-xl mb-6 relative z-10">
-            The loan application for <span className="font-bold text-white">{farmerName}</span> has been securely transmitted to Coop Bank.
+            The loan application for <span className="font-bold text-white">{farmerName}</span> has been securely transmitted{lenderName ? <> to {lenderName}</> : null}.
           </p>
 
           <div className="relative z-10 flex items-center gap-1.5 rounded-full bg-[#117b38] px-4 py-1.5 text-xs font-bold text-white shadow-inner">
@@ -121,7 +158,7 @@ export function Step4Success() {
           {/* Action Buttons */}
           <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center justify-center gap-4 pb-2">
             <button 
-              onClick={() => window.print()}
+              onClick={handleDownloadPdf}
               className="flex flex-1 sm:flex-none justify-center items-center gap-2 rounded-md border border-gray-300 bg-white px-6 py-2.5 text-sm font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"
             >
               <Download size={16} /> Download PDF
@@ -139,6 +176,12 @@ export function Step4Success() {
               <LayoutDashboard size={16} /> Return to Dashboard
             </button>
           </div>
+
+          {downloadError && (
+            <p role="alert" className="text-center text-sm font-medium text-red-600">
+              {downloadError}
+            </p>
+          )}
 
         </div>
       </div>
