@@ -6,12 +6,10 @@
 //    develop     -> build + push to ECR (eoan/oan-a2c-ui/a2c-ui) + ci/deploy-helm-dev.sh
 //                   (Helm upgrade on oan_dev k3s, namespace `a2c`, via VPN kubeconfig),
 //                   then package + publish the Helm chart oan-a2c-ui to oan-helm
-//    staging_aws -> build + push to ECR (oan/access-to-credit-system) + SSH docker-compose
-//                   deploy to a SEPARATE frontend stack on the AWS backend box (BACKEND_IP,
-//                   ${STAGING_AWS_APP_DIR}, host port 3002). Mirrors Jenkinsfile.main, which
-//                   it supersedes; coexists with main's /opt/oan_a2c_fe_main (port 3001).
-//    staging_ati -> build + push to ECR (oan/access-to-credit-system) + ci/update-kustomize-ati.sh
-//                   (GitOps: bump oan-kustomize `staging` overlay; ArgoCD on node 41 syncs)
+//    staging     -> builds nothing: ci/package_chart.py promote tags the image develop built from this same source
+//                   tree <version>-staging.<build>, repackages its chart, and ci/deploy-helm-dev.sh (DEPLOY_ENV=staging,
+//                   helm/environments/staging) installs it on the QA cluster (qa.oanstaging.com) with oan-qa-kubeconfig.
+//                   The chart is published to repository/staging of oan-helm.
 //
 //  develop: the VPN deploy agent (oan-ci-deploy) runs ci/deploy-helm-dev.sh with the
 //  `oan-dev-kubeconfig` Secret file credential (same kubeconfig used by the oan_a2c backend).
@@ -21,12 +19,10 @@
 //  so the same image is deployed without a rebuild when the backend URL changes.
 //
 //  Tags:  develop: <package.json version>-develop.<build>, e.g. 0.0.1-develop.57 (= chart version)
-//         staging_*: <branch>-<build>   immutable, pinned by oan-kustomize
-//         <branch>-latest    moving alias
+//         staging: <package.json version>-staging.<build> (= chart version), the develop image promoted
 //
-//  Agent needs: docker(+buildx), aws cli v2, git, kustomize.
-//  Credentials: AWS_ACCOUNT_ID; oan-dev-kubeconfig (develop);
-//               backend-ssh-key (staging_aws); oan-deployer (staging_ati GitOps).
+//  Agent needs: docker(+buildx), aws cli v2, git.
+//  Credentials: AWS_ACCOUNT_ID; oan-dev-kubeconfig (develop); oan-qa-kubeconfig (staging).
 // =============================================================================
 pipeline {
   agent any
@@ -40,44 +36,29 @@ pipeline {
 
   environment {
     AWS_REGION               = 'ap-south-1'
-    BACKEND_IP               = '10.0.2.100'                            // AWS backend box (staging_aws)
     DEV_API_BASE_URL         = 'https://a2c-backend-development.oanstaging.com/api'
-    STAGING_API_BASE_URL     = 'https://a2c.ati-staging.internal'      // on-prem backend on node 41
-    AWS_STAGING_API_BASE_URL = 'https://a2c-backend.oanstaging.com/api' // staging_aws: reuse existing public backend; routes call ${API_BASE_URL}/v1/...
-    STAGING_AWS_APP_DIR      = '/opt/oan_a2c_fe_staging'               // separate from main's /opt/oan_a2c_fe_main
   }
 
   stages {
     stage('Resolve') {
       steps {
         script {
-          // develop -> eoan/oan-a2c-ui/a2c-ui (ECR repo must exist) + dev backend.
-          // staging_aws -> namespaced repo + existing public backend.
-          // staging_ati -> namespaced repo + on-prem backend (node 41).
-          env.ECR_REPO      = (env.BRANCH_NAME == 'develop') ? 'eoan/oan-a2c-ui/a2c-ui' : 'oan/access-to-credit-system'
-          env.API_BASE_URL  = (env.BRANCH_NAME == 'staging_ati') ? env.STAGING_API_BASE_URL
-                            : (env.BRANCH_NAME == 'staging_aws') ? env.AWS_STAGING_API_BASE_URL
-                            : env.DEV_API_BASE_URL
-          // staging_ati / staging_aws publish under hyphenated `staging-ati-` / `staging-aws-`
-          // prefixes (not the branch-derived `staging_ati-` / `staging_aws-`) so the immutable
-          // tags read staging-ati-<build> / staging-aws-<build>, uniform across all repos.
-          // develop keeps its branch-name tag.
-          def tagPrefix     = (env.BRANCH_NAME == 'staging_ati') ? 'staging-ati'
-                            : (env.BRANCH_NAME == 'staging_aws') ? 'staging-aws'
-                            : env.BRANCH_NAME
-          env.IMMUTABLE_TAG = "${tagPrefix}-${env.BUILD_NUMBER}"
-          // develop: tag = chart version = <package.json version>-develop.<build>, e.g. 0.0.1-develop.57
-          if (env.BRANCH_NAME == 'develop') {
+          // One ECR repo (must exist) and one backend: the image is built on develop and promoted to staging.
+          // tag = chart version = <package.json version>-<branch>.<build>, e.g. 0.0.1-develop.57 / 0.0.1-staging.58
+          env.ECR_REPO      = 'eoan/oan-a2c-ui/a2c-ui'
+          env.API_BASE_URL  = env.DEV_API_BASE_URL
+          env.IMMUTABLE_TAG = "${env.BRANCH_NAME}-${env.BUILD_NUMBER}"
+          if (env.BRANCH_NAME == 'develop' || env.BRANCH_NAME == 'staging') {
             env.IMMUTABLE_TAG = sh(returnStdout: true, script: 'python3 ci/package_chart.py version').trim()
           }
-          env.MOVING_TAG    = "${tagPrefix}-latest"
+          env.MOVING_TAG    = "${env.BRANCH_NAME}-latest"
           echo "branch=${env.BRANCH_NAME}  repo=${env.ECR_REPO}  tag=${env.IMMUTABLE_TAG}  api=${env.API_BASE_URL}"
         }
       }
     }
 
     stage('Build image') {
-      when { anyOf { branch 'develop'; branch 'staging_aws'; branch 'staging_ati' } }
+      when { branch 'develop' }
       steps {
         withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
           sh '''#!/usr/bin/env bash
@@ -101,7 +82,7 @@ pipeline {
     }
 
     stage('Push to ECR') {
-      when { anyOf { branch 'develop'; branch 'staging_aws'; branch 'staging_ati' } }
+      when { branch 'develop' }
       steps {
         withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
           sh '''#!/usr/bin/env bash
@@ -129,8 +110,9 @@ pipeline {
     // Flow (develop): Resolve (version) -> Build image -> Push to ECR -> Package chart -> deploy -> Publish chart.
     // helm/oan-a2c-ui is zipped with this build's image before the deploy; the same archive is
     // published to oan-helm after it.
+    // staging: `promote` instead of `package`: develop's chart for this source tree, its image tagged for staging.
     stage('Package chart') {
-      when { branch 'develop' }
+      when { anyOf { branch 'develop'; branch 'staging' } }
       steps {
         withCredentials([string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID')]) {
           script {
@@ -139,7 +121,15 @@ pipeline {
             env.COMMIT_SUBJECT = sh(returnStdout: true, script: 'git log -1 --pretty=%s').trim()
             env.IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
           }
-          sh 'python3 ci/package_chart.py package'
+          script {
+              if (env.BRANCH_NAME == 'staging') {
+                  // The workspace holds the staging branch only; promote needs the develop commits the chart index names.
+                  withCredentials([gitUsernamePassword(credentialsId: scm.userRemoteConfigs[0].credentialsId, gitToolName: 'Default')]) {
+                      sh 'git fetch --quiet --no-tags origin +refs/heads/develop:refs/remotes/origin/develop'
+                  }
+              }
+          }
+          sh "python3 ci/package_chart.py ${env.BRANCH_NAME == 'staging' ? 'promote' : 'package'}"
           stash name: 'built-chart', includes: 'built-chart/**'
         }
       }
@@ -170,87 +160,34 @@ pipeline {
       }
     }
 
-    // staging_aws -> a SEPARATE frontend stack on the SAME AWS backend box (BACKEND_IP),
-    // mirroring Jenkinsfile.main's Deploy-to-Staging-VM but into ${STAGING_AWS_APP_DIR} on
-    // host port 3002 (main uses /opt/oan_a2c_fe_main:3001). API_BASE_URL is baked at build
-    // time; we reuse the existing public backend (a2c-backend.oanstaging.com) per the env.
-    // PREREQ: ${STAGING_AWS_APP_DIR} must exist on BACKEND_IP, owned by the ssh user, so scp
-    // can land the compose file (mkdir in /opt needs root — provisioned once, out of band).
-    stage('staging_aws → AWS frontend (separate stack)') {
-      when { branch 'staging_aws' }
+    stage('staging → QA cluster (helm)') {
+      when { branch 'staging' }
+      agent { label 'oan-ci-deploy' }   // VPN agent with helm and kubectl; must reach the QA API
+      options { timeout(time: 15, unit: 'MINUTES') }
       steps {
+        checkout scm
+        sh 'rm -rf built-chart'
+        unstash 'built-chart'
         withCredentials([
           string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-          sshUserPrivateKey(credentialsId: 'backend-ssh-key',
-                            keyFileVariable: 'SSH_KEY', usernameVariable: 'SSH_USER')
+          file(credentialsId: 'oan-qa-kubeconfig', variable: 'KUBECONFIG')
         ]) {
           sh '''#!/usr/bin/env bash
             set -euo pipefail
-            REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-            IMAGE_URI="${REGISTRY}/${ECR_REPO}:${IMMUTABLE_TAG}"
-
-            scp -i "${SSH_KEY}" -o StrictHostKeyChecking=no \
-              docker-compose.yaml "${SSH_USER}@${BACKEND_IP}:${STAGING_AWS_APP_DIR}/docker-compose.yaml"
-
-            ssh -i "${SSH_KEY}" -o StrictHostKeyChecking=no "${SSH_USER}@${BACKEND_IP}" << SSHEOF
-              set -e
-              cd ${STAGING_AWS_APP_DIR}
-
-              # host port 3002 + distinct container name so this coexists with main's 3001 stack
-              sed -i 's/3000:3000/3002:3000/' docker-compose.yaml
-              sed -i 's/oan_a2c_frontend/oan_a2c_frontend_staging/' docker-compose.yaml
-
-              cat > .env <<ENVEOF
-ECR_IMAGE=${IMAGE_URI}
-API_BASE_URL=${API_BASE_URL}
-ENVEOF
-
-              aws ecr get-login-password --region ${AWS_REGION} \
-                | docker login --username AWS --password-stdin ${REGISTRY}
-
-              docker compose pull
-              docker compose down || true
-              docker compose up -d
-              sleep 15
-              curl -sf http://localhost:3002 >/dev/null \
-                && echo "Health check passed (port 3002)" || echo "Warning: health check failed"
-
-              # Reclaim disk: each deploy pulls a fresh image; -a drops old tags no running
-              # container uses so the shared box doesn't fill up over deploys.
-              echo "=== Pruning unused images ==="
-              docker image prune -af || true
-              echo "=== staging_aws frontend deployed on port 3002 ==="
-              docker compose ps
-SSHEOF
+            DEPLOY_ENV=staging \
+            IMAGE_REPOSITORY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}" \
+            IMMUTABLE_TAG="${IMMUTABLE_TAG}" \
+            bash ci/deploy-helm-dev.sh
           '''
         }
       }
     }
 
-    // staging_ati -> GitOps: bump apps/access-to-credit-system/overlays/staging in oan-kustomize.
-    // Auth is the `oan-deployer` GitHub App (contents:write on oan-kustomize only).
-    stage('staging → GitOps (ArgoCD@41)') {
-      when { branch 'staging_ati' }
-      steps {
-        withCredentials([
-          string(credentialsId: 'AWS_ACCOUNT_ID', variable: 'AWS_ACCOUNT_ID'),
-          gitUsernamePassword(credentialsId: 'oan-deployer', gitToolName: 'Default')
-        ]) {
-          sh '''#!/usr/bin/env bash
-            set -euo pipefail
-            chmod +x ci/update-kustomize-ati.sh
-            # args: <overlay> <kustomize image match-name> <new image ref>
-            ci/update-kustomize-ati.sh staging access-to-credit-system \
-              "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMMUTABLE_TAG}"
-          '''
-        }
-      }
-    }
     // ---------------------- Helm chart publish ----------------------
     // Adds the archive built by 'Package chart' to repository/develop/ of oan-helm, only after
     // the dev VM deploy succeeded.
     stage('Publish chart') {
-      when { branch 'develop' }
+      when { anyOf { branch 'develop'; branch 'staging' } }
       steps {
         // UNSTABLE, not failed: the image is already deployed.
         catchError(buildResult: 'UNSTABLE', stageResult: 'UNSTABLE') {
