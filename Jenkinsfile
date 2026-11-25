@@ -120,6 +120,10 @@ pipeline {
             env.SOURCE_COMMIT = sh(returnStdout: true, script: 'git rev-parse --verify HEAD').trim()
             env.COMMIT_SUBJECT = sh(returnStdout: true, script: 'git log -1 --pretty=%s').trim()
             env.IMAGE_REPOSITORY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}"
+            if (env.BRANCH_NAME == 'develop') {
+              // The chart pins the image by digest, which the staging promotion needs to tag the same image.
+              env.IMAGE_DIGEST = sh(returnStdout: true, script: 'aws ecr describe-images --region "$AWS_REGION" --repository-name "$ECR_REPO" --image-ids imageTag="$IMMUTABLE_TAG" --query "imageDetails[0].imageDigest" --output text').trim()
+            }
           }
           script {
               if (env.BRANCH_NAME == 'staging') {
